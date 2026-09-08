@@ -119,23 +119,11 @@ You can also build the project directly:
 dotnet build .\DriveclubSaveEditor\DriveclubSaveEditor.csproj -c Release
 ```
 
-## Donate
-
-The application includes an optional **Donate** button that opens PayPal in the system browser for voluntary support.
-
-PayPal recipient: `mohammedar@btinternet.com`
-
-Donations are optional and do not enable, disable, or unlock any editor functionality. Payment credentials are never handled by the application.
-
 ## Notes
 
 - Per-event Tour/star save writing is intentionally not exposed until the persistent GameSession mapping is sufficiently verified.
 - `AssetNewness` is treated as new/unseen state, not as proven livery or DLC ownership.
 - The editor is intended for offline save editing; no online database is required.
-
-## Project discussion
-
-ChatGPT project share: https://chatgpt.com/s/t_6aa0569a92708191bf1fc29c720d6b0e
 
 ## Disclaimer
 
