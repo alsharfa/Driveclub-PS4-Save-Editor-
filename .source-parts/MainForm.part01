@@ -1,0 +1,399 @@
+using System.Diagnostics;
+using System.Globalization;
+
+namespace DriveclubSaveEditor;
+
+public sealed class MainForm : Form
+{
+    private sealed record VehicleChoice(string Code, string Name)
+    {
+        public override string ToString() => Name;
+    }
+
+    private sealed record GarageRowState(DriveclubSave.StatsStoreEntry Stat, int OriginalLevel, ulong? OriginalFame);
+    private sealed record FloatCounterRowState(DriveclubSave.FloatEntry Entry, float OriginalValue);
+    private sealed record ScalarRowState(DriveclubSave.ScalarEntry Entry, long OriginalSigned, ulong OriginalUnsigned);
+
+    private enum TrophyEditKind
+    {
+        Fame,
+        StatValue1,
+        FloatCounter
+    }
+
+    private sealed record TrophyEditTarget(
+        TrophyEditKind Kind,
+        string Key,
+        decimal? Requirement,
+        string RequirementText,
+        decimal CurrentValue,
+        decimal OriginalValue);
+
+    private readonly Dictionary<string, decimal> _trophyOriginalValues = new(StringComparer.Ordinal);
+
+    // Pro UI palette. No third-party UI framework is required.
+    private static readonly Color AppBack = Color.FromArgb(15, 17, 22);
+    private static readonly Color SidebarBack = Color.FromArgb(19, 22, 29);
+    private static readonly Color Surface = Color.FromArgb(24, 28, 36);
+    private static readonly Color SurfaceRaised = Color.FromArgb(30, 35, 45);
+    private static readonly Color InputBack = Color.FromArgb(20, 24, 31);
+    private static readonly Color Border = Color.FromArgb(46, 53, 66);
+    private static readonly Color Accent = Color.FromArgb(85, 112, 255);
+    private static readonly Color AccentHover = Color.FromArgb(105, 130, 255);
+    private static readonly Color TextPrimary = Color.FromArgb(240, 243, 250);
+    private static readonly Color TextSecondary = Color.FromArgb(157, 166, 184);
+    private static readonly Color Success = Color.FromArgb(78, 201, 151);
+    private static readonly Color Warning = Color.FromArgb(240, 183, 82);
+    private static readonly Color Danger = Color.FromArgb(244, 103, 112);
+
+    private DriveclubSave? _save;
+
+    private readonly TabControl _tabs = new();
+    private readonly List<Button> _navButtons = new();
+    private readonly Label _pageTitle = new();
+    private readonly Label _pageSubtitle = new();
+    private readonly Label _fileLabel = new();
+    private readonly Label _saveStateBadge = new();
+    private readonly Label _statusLabel = new();
+    private readonly RichTextBox _overviewBox = new();
+
+    private readonly Label _homeChecksumValue = new();
+    private readonly Label _homeRankValue = new();
+    private readonly Label _homeFameValue = new();
+    private readonly Label _homeVehiclesValue = new();
+
+    private readonly NumericUpDown _driverFame = new();
+    private readonly NumericUpDown _targetDriverRank = new();
+    private readonly Label _driverRankInfo = new();
+    private readonly Label _driverRankSub = new();
+    private readonly Label _driverFameInfo = new();
+    private readonly ProgressBar _rankProgress = new();
+    private bool _loadingFriendly;
+    private bool _driverFameDirty;
+    private readonly CheckedListBox _features = new();
+    private readonly Dictionary<string, string> _featureOriginalRaw = new(StringComparer.Ordinal);
+    private readonly ComboBox _recentCar = new();
+    private readonly ComboBox _recentBike = new();
+    private string? _recentCarOriginal;
+    private string? _recentBikeOriginal;
+
+    private readonly TextBox _garageSearch = new();
+    private readonly DataGridView _garageGrid = CreateGrid();
+
+    // Customisation / livery editor.
+    private readonly ComboBox _customSlot = new();
+    private readonly ComboBox _liveryDesign = new();
+    private readonly NumericUpDown _raceNumber = new();
+    private readonly ComboBox _raceBadge = new();
+    private readonly ComboBox _raceFont = new();
+    private readonly NumericUpDown[] _paintFinish = [new(), new(), new(), new()];
+    private readonly NumericUpDown[] _paintColour = [new(), new(), new(), new()];
+    private readonly ComboBox _leftDecal = new();
+    private readonly ComboBox _rightDecal = new();
+    private readonly ComboBox[] _badgeLayerAsset = [new(), new()];
+    private readonly NumericUpDown[] _badgeLayerPaint = [new(), new()];
+    private readonly NumericUpDown[] _badgeLayerScale = [new(), new()];
+    private readonly Label _customAssetSummary = new();
+    private readonly CustomisationProfile?[] _customProfiles = new CustomisationProfile?[2];
+    private int _customLoadedIndex = -1;
+    private bool _loadingCustomisation;
+
+    // Progression / trophy views.
+    private readonly DataGridView _eliteGrid = CreateGrid();
+    private readonly DataGridView _progressCounterGrid = CreateGrid();
+    private readonly DataGridView _trophyGrid = CreateGrid();
+
+    private readonly DataGridView _statsGrid = CreateGrid();
+    private readonly DataGridView _rawStatsGrid = CreateGrid();
+
+    private readonly DataGridView _profileGrid = CreateGrid();
+    private readonly DataGridView _profileFloatGrid = CreateGrid();
+    private readonly DataGridView _rankGrid = CreateGrid();
+    private readonly DataGridView _fameGrid = CreateGrid();
+    private readonly DataGridView _storeGrid = CreateGrid();
+
+    private static readonly (string Title, string Subtitle)[] PageInfo =
+    [
+        ("Dashboard", "Save health, progression and quick access"),
+        ("Player", "Driver Fame, target rank and gameplay features"),
+        ("Garage", "Vehicle levels with readable manufacturer and model names"),
+        ("Customisation", "Liveries, paint, race numbers, badges and decals"),
+        ("Progression", "Elite requirements, accolades and challenge counters"),
+        ("Trophy Prep", "Individually edit trophy-related save counters and trigger targets"),
+        ("Statistics", "Readable vehicle, track and gameplay statistics"),
+        ("Advanced", "Raw save structures for research and troubleshooting")
+    ];
+
+    public MainForm()
+    {
+        Text = "Driveclub PS4 Save Editor";
+        StartPosition = FormStartPosition.CenterScreen;
+        MinimumSize = new Size(1180, 760);
+        Size = new Size(1440, 900);
+        Font = new Font("Segoe UI", 10F);
+        BackColor = AppBack;
+        ForeColor = TextPrimary;
+        DoubleBuffered = true;
+
+        _tabs.Dock = DockStyle.Fill;
+        _tabs.Appearance = TabAppearance.FlatButtons;
+        _tabs.SizeMode = TabSizeMode.Fixed;
+        _tabs.ItemSize = new Size(0, 1);
+        _tabs.Multiline = true;
+        _tabs.Padding = new Point(0, 0);
+        _tabs.TabStop = false;
+        _tabs.TabPages.Add(BuildOverviewTab());
+        _tabs.TabPages.Add(BuildPlayerTab());
+        _tabs.TabPages.Add(BuildGarageTab());
+        _tabs.TabPages.Add(BuildCustomisationTab());
+        _tabs.TabPages.Add(BuildProgressionTab());
+        _tabs.TabPages.Add(BuildTrophyPrepTab());
+        _tabs.TabPages.Add(BuildStatsTab());
+        _tabs.TabPages.Add(BuildAdvancedTab());
+
+        var header = BuildHeader();
+        var sidebar = BuildSidebar();
+        var pageHeader = BuildPageHeader();
+
+        var content = new Panel { Dock = DockStyle.Fill, BackColor = AppBack, Padding = new Padding(22, 0, 22, 18) };
+        content.Controls.Add(_tabs);
+        content.Controls.Add(pageHeader);
+
+        var workspace = new Panel { Dock = DockStyle.Fill, BackColor = AppBack };
+        workspace.Controls.Add(content);
+        workspace.Controls.Add(sidebar);
+
+        var statusPanel = new Panel { Dock = DockStyle.Bottom, Height = 32, BackColor = SidebarBack };
+        var statusAccent = new Panel { Dock = DockStyle.Left, Width = 4, BackColor = Accent };
+        _statusLabel.Dock = DockStyle.Fill;
+        _statusLabel.Padding = new Padding(14, 7, 0, 0);
+        _statusLabel.ForeColor = TextSecondary;
+        _statusLabel.Text = "Ready. Open a decrypted Driveclub profile.sav to begin.";
+        statusPanel.Controls.Add(_statusLabel);
+        statusPanel.Controls.Add(statusAccent);
+
+        Controls.Add(workspace);
+        Controls.Add(statusPanel);
+        Controls.Add(header);
+
+        NavigateTo(0);
+    }
+
+    private Panel BuildHeader()
+    {
+        var header = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = Surface, Padding = new Padding(0) };
+        header.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Border);
+            e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
+        };
+
+        var brand = new Panel { Dock = DockStyle.Left, Width = 226, BackColor = SidebarBack };
+        var logoBlock = new Panel { Location = new Point(22, 18), Size = new Size(38, 38), BackColor = Accent };
+        var logo = new Label
+        {
+            Text = "DC",
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+            ForeColor = Color.White
+        };
+        logoBlock.Controls.Add(logo);
+        brand.Controls.Add(logoBlock);
+        brand.Controls.Add(new Label
+        {
+            Text = "DRIVECLUB",
+            AutoSize = true,
+            Location = new Point(72, 17),
+            Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+            ForeColor = TextPrimary
+        });
+        brand.Controls.Add(new Label
+        {
+            Text = "SAVE EDITOR  •  PRO",
+            AutoSize = true,
+            Location = new Point(73, 43),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            ForeColor = TextSecondary
+        });
+
+        var actions = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            Width = 448,
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+            Padding = new Padding(0, 20, 18, 0),
+            BackColor = Surface
+        };
+        var save = MakeButton("SAVE", true, 88);
+        var saveAs = MakeButton("SAVE COPY", false, 104);
+        var open = MakeButton("OPEN SAVE", false, 108);
+        var donate = MakeButton("DONATE", false, 92);
+        donate.ForeColor = Warning;
+        donate.FlatAppearance.BorderColor = Color.FromArgb(112, 88, 46);
+        save.Click += (_, _) => SaveCurrent(false);
+        saveAs.Click += (_, _) => SaveCurrent(true);
+        open.Click += (_, _) => OpenSave();
+        donate.Click += (_, _) => ShowDonateDialog();
+        actions.Controls.Add(save);
+        actions.Controls.Add(saveAs);
+        actions.Controls.Add(open);
+        actions.Controls.Add(donate);
+
+        var fileArea = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
+        _fileLabel.AutoEllipsis = true;
+        _fileLabel.AutoSize = false;
+        _fileLabel.Location = new Point(24, 21);
+        _fileLabel.Size = new Size(520, 22);
+        _fileLabel.Text = "No save loaded";
+        _fileLabel.ForeColor = TextSecondary;
+        _fileLabel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        fileArea.Controls.Add(_fileLabel);
+
+        _saveStateBadge.AutoSize = false;
+        _saveStateBadge.Location = new Point(24, 47);
+        _saveStateBadge.Size = new Size(128, 20);
+        _saveStateBadge.TextAlign = ContentAlignment.MiddleCenter;
+        _saveStateBadge.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+        _saveStateBadge.Text = "NO SAVE LOADED";
+        _saveStateBadge.BackColor = SurfaceRaised;
+        _saveStateBadge.ForeColor = TextSecondary;
+        fileArea.Controls.Add(_saveStateBadge);
+
+        header.Controls.Add(fileArea);
+        header.Controls.Add(actions);
+        header.Controls.Add(brand);
+        return header;
+    }
+
+
+    private void ShowDonateDialog()
+    {
+        const string paypalEmail = "mohammedar@btinternet.com";
+
+        using var dialog = new Form
+        {
+            Text = "Support Driveclub PS4 Save Editor",
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            ShowInTaskbar = false,
+            ClientSize = new Size(540, 355),
+            BackColor = AppBack,
+            ForeColor = TextPrimary,
+            Font = new Font("Segoe UI", 10F)
+        };
+
+        var title = new Label
+        {
+            Text = "Support the developer",
+            AutoSize = true,
+            Location = new Point(24, 22),
+            Font = new Font("Segoe UI", 18F, FontStyle.Bold),
+            ForeColor = TextPrimary
+        };
+        dialog.Controls.Add(title);
+
+        var description = new Label
+        {
+            Text = "If this editor is useful to you, you can make an optional PayPal donation. " +
+                   "Choose any amount. Currency conversion and payment are handled by PayPal.",
+            AutoSize = false,
+            Location = new Point(27, 64),
+            Size = new Size(485, 54),
+            ForeColor = TextSecondary
+        };
+        dialog.Controls.Add(description);
+
+        dialog.Controls.Add(new Label
+        {
+            Text = "Amount",
+            AutoSize = true,
+            Location = new Point(27, 137),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = TextSecondary
+        });
+
+        var amount = new NumericUpDown
+        {
+            Location = new Point(27, 159),
+            Size = new Size(180, 30),
+            DecimalPlaces = 2,
+            Minimum = 0,
+            Maximum = 1000000000M,
+            Increment = 1M,
+            Value = 0
+        };
+        StyleNumeric(amount);
+        dialog.Controls.Add(amount);
+
+        var amountHint = new Label
+        {
+            Text = "0 = enter any amount on PayPal",
+            AutoSize = true,
+            Location = new Point(27, 195),
+            Font = new Font("Segoe UI", 8.5F),
+            ForeColor = TextSecondary
+        };
+        dialog.Controls.Add(amountHint);
+
+        dialog.Controls.Add(new Label
+        {
+            Text = "Currency",
+            AutoSize = true,
+            Location = new Point(238, 137),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = TextSecondary
+        });
+
+        var currency = new ComboBox
+        {
+            Location = new Point(238, 159),
+            Size = new Size(274, 30),
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = InputBack,
+            ForeColor = TextPrimary,
+            FlatStyle = FlatStyle.Flat
+        };
+        currency.Items.AddRange(new object[]
+        {
+            "PayPal default",
+            "AUD - Australian Dollar",
+            "BRL - Brazilian Real",
+            "CAD - Canadian Dollar",
+            "CNY - Chinese Yuan",
+            "CZK - Czech Koruna",
+            "DKK - Danish Krone",
+            "EUR - Euro",
+            "HKD - Hong Kong Dollar",
+            "HUF - Hungarian Forint",
+            "ILS - Israeli New Shekel",
+            "JPY - Japanese Yen",
+            "MYR - Malaysian Ringgit",
+            "MXN - Mexican Peso",
+            "TWD - New Taiwan Dollar",
+            "NZD - New Zealand Dollar",
+            "NOK - Norwegian Krone",
+            "PHP - Philippine Peso",
+            "PLN - Polish Zloty",
+            "GBP - Pound Sterling",
+            "SGD - Singapore Dollar",
+            "SEK - Swedish Krona",
+            "CHF - Swiss Franc",
+            "THB - Thai Baht",
+            "USD - US Dollar"
+        });
+        currency.SelectedIndex = 0;
+        dialog.Controls.Add(currency);
+
+        var recipient = new Label
+        {
+            Text = $"PayPal recipient: {paypalEmail}",
+            AutoSize = true,
+            Location = new Point(27, 235),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = TextPrimary
+        };
+        dialog.Controls.Add(recipient);
