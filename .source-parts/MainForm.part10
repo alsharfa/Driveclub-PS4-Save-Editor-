@@ -1,0 +1,26 @@
+
+    private static void StyleTextBox(TextBox textBox)
+    {
+        textBox.BackColor = InputBack;
+        textBox.ForeColor = TextPrimary;
+        textBox.BorderStyle = BorderStyle.FixedSingle;
+        textBox.Font = new Font("Segoe UI", 10F);
+    }
+
+    private void UpdateSaveBadge()
+    {
+        if (_save is null)
+        {
+            _saveStateBadge.Text = "NO SAVE LOADED";
+            _saveStateBadge.BackColor = SurfaceRaised;
+            _saveStateBadge.ForeColor = TextSecondary;
+            return;
+        }
+
+        _saveStateBadge.Text = _save.ChecksumValid ? "CHECKSUM VALID" : "CHECKSUM INVALID";
+        _saveStateBadge.BackColor = _save.ChecksumValid ? Color.FromArgb(27, 76, 61) : Color.FromArgb(87, 36, 42);
+        _saveStateBadge.ForeColor = _save.ChecksumValid ? Success : Danger;
+    }
+
+    private void SetStatus(string text) => _statusLabel.Text = text;
+}
