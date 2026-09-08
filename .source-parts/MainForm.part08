@@ -1,0 +1,200 @@
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private bool AdvancedPlayerFameWasEdited()
+    {
+        foreach (DataGridViewRow row in _fameGrid.Rows)
+        {
+            if (row.Tag is not ScalarRowState state || state.Entry.IsUnsigned) continue;
+            if (state.Entry.Name is not ("Fame[0]" or "Fame[1]" or "Fame[2]")) continue;
+            if (state.Entry.SignedValue != state.OriginalSigned)
+                return true;
+        }
+        return false;
+    }
+
+    private void CommitFriendly()
+    {
+        if (_save is null) return;
+
+        // Commit overlapping progression/trophy fields before writing Player Fame. A user may type
+        // a Fame value directly into Trophy Prep and press Save without clicking Apply first.
+        // CommitTrophyPrepEdits() marks _driverFameDirty, so Fame must be serialized afterwards.
+        CommitProgressionCounters();
+        CommitTrophyPrepEdits();
+
+        if (_driverFameDirty)
+        {
+            if (AdvancedPlayerFameWasEdited())
+                throw new InvalidDataException("Player Fame was edited in both Player/Trophy Prep and Advanced Rank/Fame. Keep only one Fame edit before saving.");
+            _save.SetEffectivePlayerFame(decimal.ToInt64(_driverFame.Value));
+        }
+
+        int index = 0;
+        foreach (var pair in FriendlyNames.FeatureLabels)
+        {
+            var entry = _save.FindString(pair.Key);
+            if (entry is null)
+            {
+                index++;
+                continue;
+            }
+
+            string original = _featureOriginalRaw.TryGetValue(pair.Key, out string? raw) ? raw : entry.Value;
+            string desired = _features.GetItemChecked(index) ? "true" : "false";
+            bool friendlyChanged = IsTrue(original) != _features.GetItemChecked(index);
+            bool advancedChanged = !string.Equals(entry.Value, original, StringComparison.Ordinal);
+
+            if (friendlyChanged && advancedChanged && !string.Equals(entry.Value, desired, StringComparison.Ordinal))
+                throw new InvalidDataException($"{pair.Value} was edited in both Player and Advanced with different values.");
+            if (friendlyChanged)
+                entry.Value = desired;
+            index++;
+        }
+
+        if (_recentCar.SelectedItem is VehicleChoice car && !string.Equals(car.Code, _recentCarOriginal, StringComparison.Ordinal))
+        {
+            var e = _save.FindString("recentvehicleDC_CARS");
+            if (e is not null)
+            {
+                if (!string.Equals(e.Value, _recentCarOriginal, StringComparison.Ordinal) && !string.Equals(e.Value, car.Code, StringComparison.Ordinal))
+                    throw new InvalidDataException("Recent Car was edited in both Player and Advanced with different values.");
+                e.Value = car.Code;
+            }
+        }
+        if (_recentBike.SelectedItem is VehicleChoice bike && !string.Equals(bike.Code, _recentBikeOriginal, StringComparison.Ordinal))
+        {
+            var e = _save.FindString("recentvehicleDC_BIKES");
+            if (e is not null)
+            {
+                if (!string.Equals(e.Value, _recentBikeOriginal, StringComparison.Ordinal) && !string.Equals(e.Value, bike.Code, StringComparison.Ordinal))
+                    throw new InvalidDataException("Recent Bike was edited in both Player and Advanced with different values.");
+                e.Value = bike.Code;
+            }
+        }
+
+        foreach (DataGridViewRow row in _garageGrid.Rows)
+        {
+            if (row.Tag is not GarageRowState state) continue;
+            var stat = state.Stat;
+            string text = Convert.ToString(row.Cells[2].Value) ?? "";
+            if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int level) || level < 1 || level > 15)
+                throw new InvalidDataException($"{FriendlyNames.GetVehicle(stat.Name).Name}: vehicle level must be between 1 and 15.");
+
+            if (level == state.OriginalLevel)
+                continue; // Critical: preserve exact Fame/progress and missing Value1 fields when untouched.
+
+            if (stat.Value1 != state.OriginalFame)
+                throw new InvalidDataException($"{FriendlyNames.GetVehicle(stat.Name).Name} was edited in both Garage and Advanced. Keep only one vehicle Fame/level edit before saving.");
+
+            stat.Value1 = FriendlyNames.GetVehicleThreshold(stat.Name, level);
+        }
+
+        CommitCustomisation();
+    }
+
+    private void CommitAdvanced()
+    {
+        if (_save is null) return;
+
+        foreach (DataGridViewRow row in _profileGrid.Rows)
+        {
+            if (row.Tag is DriveclubSave.StringEntry item)
+                item.Value = Convert.ToString(row.Cells[1].Value) ?? "";
+        }
+        foreach (DataGridViewRow row in _profileFloatGrid.Rows)
+        {
+            if (row.Tag is not DriveclubSave.FloatEntry item) continue;
+            string text = Convert.ToString(row.Cells[1].Value) ?? "";
+            if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) || float.IsNaN(value) || float.IsInfinity(value))
+                throw new InvalidDataException($"{item.Name} must be a finite decimal number.");
+            item.Value = value;
+        }
+        foreach (DataGridViewRow row in _rawStatsGrid.Rows)
+        {
+            if (row.Tag is not DriveclubSave.StatsStoreEntry item) continue;
+            if (item.Value1.HasValue) item.Value1 = ParseULong(row.Cells[2], item.Name, "Value 1");
+            if (item.Value2.HasValue) item.Value2 = ParseUInt(row.Cells[3], item.Name, "Value 2");
+            if (item.Value3.HasValue) item.Value3 = ParseUInt(row.Cells[4], item.Name, "Value 3");
+            if (item.Value4.HasValue) item.Value4 = ParseUInt(row.Cells[5], item.Name, "Value 4");
+            if (item.Value5.HasValue) item.Value5 = ParseUInt(row.Cells[6], item.Name, "Value 5");
+        }
+
+        CommitScalarGrid(_rankGrid);
+        CommitScalarGrid(_fameGrid);
+        foreach (DataGridViewRow row in _storeGrid.Rows)
+        {
+            if (row.Tag is not DriveclubSave.StoreCatalogEntry item) continue;
+            string text = Convert.ToString(row.Cells[1].Value) ?? "";
+            if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                throw new InvalidDataException($"StoreCatalog[{item.Index}] must be a signed 32-bit integer.");
+            item.Value = value;
+        }
+    }
+
+    private static void CommitScalarGrid(DataGridView grid)
+    {
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            if (row.Tag is not ScalarRowState state) continue;
+            var item = state.Entry;
+            string text = Convert.ToString(row.Cells[2].Value) ?? "";
+            if (item.IsUnsigned)
+            {
+                if (!ulong.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong value) || value > uint.MaxValue)
+                    throw new InvalidDataException($"{item.Name} must be between 0 and {uint.MaxValue}.");
+                item.UnsignedValue = value;
+            }
+            else
+            {
+                if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long value))
+                    throw new InvalidDataException($"{item.Name} must be a signed integer.");
+                item.SignedValue = value;
+            }
+        }
+    }
+
+    private void SetAllGarageLevels(int level)
+    {
+        foreach (DataGridViewRow row in _garageGrid.Rows)
+            row.Cells[2].Value = level;
+        SetStatus($"All visible and hidden vehicles set to level {level}. Save to apply.");
+    }
+
+    private void SetSelectedGarageLevel(int level)
+    {
+        if (_garageGrid.CurrentRow is null) return;
+        _garageGrid.CurrentRow.Cells[2].Value = level;
+    }
+
+    private void UpdateGarageFamePreview(DataGridViewRow row)
+    {
+        if (row.Tag is not GarageRowState state) return;
+        string text = Convert.ToString(row.Cells[2].Value) ?? string.Empty;
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int level) || level < 1 || level > 15)
+        {
+            row.Cells[3].Value = "Invalid level";
+            return;
+        }
+
+        if (level == state.OriginalLevel)
+        {
+            row.Cells[3].Value = state.OriginalFame.HasValue
+                ? state.OriginalFame.Value.ToString("N0", CultureInfo.InvariantCulture)
+                : "— not stored —";
+            return;
+        }
+
+        ulong target = FriendlyNames.GetVehicleThreshold(state.Stat.Name, level);
+        row.Cells[3].Value = target.ToString("N0", CultureInfo.InvariantCulture) + "  (will set)";
+    }
+
+    private void ApplyGarageFilter()
+    {
+        string q = _garageSearch.Text.Trim();
+        foreach (DataGridViewRow row in _garageGrid.Rows)
+        {
+            string vehicle = Convert.ToString(row.Cells[0].Value) ?? "";
+            string group = Convert.ToString(row.Cells[1].Value) ?? "";
+            row.Visible = q.Length == 0 || vehicle.Contains(q, StringComparison.OrdinalIgnoreCase) || group.Contains(q, StringComparison.OrdinalIgnoreCase);
