@@ -1,0 +1,200 @@
+        {
+            if (row.Tag is not TrophyEditTarget target) continue;
+            string text = Convert.ToString(row.Cells[4].Value) ?? string.Empty;
+            if (!decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value))
+                throw new InvalidDataException($"{row.Cells[0].Value}: EDIT VALUE must be a valid number.");
+            if (value == target.CurrentValue) continue;
+
+            string identity = $"{target.Kind}:{target.Key}";
+            string trophy = Convert.ToString(row.Cells[0].Value) ?? "Trophy counter";
+            decimal backingNow = GetCurrentTrophyBackingValue(target);
+            if (backingNow != target.CurrentValue && backingNow != value)
+                throw new InvalidDataException($"{trophy} edits a field that was also changed on another page. The other page currently wants {backingNow.ToString(CultureInfo.InvariantCulture)}, while Trophy Prep wants {value.ToString(CultureInfo.InvariantCulture)}.");
+
+            if (pending.TryGetValue(identity, out var existing) && existing.Value != value)
+                throw new InvalidDataException($"{existing.Trophy} and {trophy} edit the same save field to different values. Keep only one of those EDIT VALUE changes before saving.");
+            pending[identity] = (target, value, trophy);
+        }
+
+        foreach (var item in pending.Values)
+            ApplyTrophyValue(item.Target, item.Value);
+    }
+
+    private decimal GetCurrentTrophyBackingValue(TrophyEditTarget target)
+    {
+        if (_save is null) return target.CurrentValue;
+        return target.Kind switch
+        {
+            TrophyEditKind.Fame => (decimal)Math.Max(0, _save.EffectivePlayerFame),
+            TrophyEditKind.StatValue1 => (decimal)(_save.FindStats(target.Key)?.Value1 ?? 0UL),
+            TrophyEditKind.FloatCounter => (decimal)(_save.FindFloat(target.Key)?.Value ?? 0f),
+            _ => target.CurrentValue
+        };
+    }
+
+    private void ApplySelectedTrophyValue()
+    {
+        if (_trophyGrid.CurrentRow?.Tag is not TrophyEditTarget target)
+        {
+            SetStatus("Select an editable Trophy Prep row first.");
+            return;
+        }
+
+        string text = Convert.ToString(_trophyGrid.CurrentRow.Cells[4].Value) ?? string.Empty;
+        if (!decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value))
+        {
+            MessageBox.Show(this, "EDIT VALUE must be a valid number.", "Trophy Prep", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        string trophyName = Convert.ToString(_trophyGrid.CurrentRow.Cells[0].Value) ?? "Trophy counter";
+        ApplyTrophyValue(target, value);
+        PopulateStatistics();
+        PopulateTrophyPrep();
+        SetStatus($"{trophyName} updated.");
+    }
+
+    private void SetSelectedTrophyRequirement(bool oneBelow)
+    {
+        if (_trophyGrid.CurrentRow?.Tag is not TrophyEditTarget target)
+        {
+            SetStatus("Select an editable Trophy Prep row first.");
+            return;
+        }
+        if (!target.Requirement.HasValue)
+        {
+            MessageBox.Show(this, "This counter has no verified numeric save-side requirement. Enter the value you want in EDIT VALUE and use APPLY VALUE.", "Trophy Prep", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        decimal value = target.Requirement.Value;
+        if (oneBelow && value > 0m) value -= 1m;
+        ApplyTrophyValue(target, value);
+        PopulateStatistics();
+        PopulateTrophyPrep();
+        SetStatus(oneBelow ? "Selected trophy counter set one below its verified requirement." : "Selected trophy counter set to its verified requirement.");
+    }
+
+    private void RestoreSelectedTrophyValue()
+    {
+        if (_trophyGrid.CurrentRow?.Tag is not TrophyEditTarget target)
+        {
+            SetStatus("Select an editable Trophy Prep row first.");
+            return;
+        }
+        ApplyTrophyValue(target, target.OriginalValue);
+        PopulateStatistics();
+        PopulateTrophyPrep();
+        SetStatus("Selected trophy counter restored to the value from the originally opened save.");
+    }
+
+    private void ApplyTrophyValue(TrophyEditTarget target, decimal value)
+    {
+        if (value < 0m)
+            throw new InvalidDataException("Trophy Prep values cannot be negative.");
+
+        switch (target.Kind)
+        {
+            case TrophyEditKind.Fame:
+                if (value > _driverFame.Maximum) throw new InvalidDataException($"Player Fame cannot exceed {_driverFame.Maximum:N0} in this editor.");
+                _driverFame.Value = decimal.Truncate(value);
+                _driverFameDirty = true;
+                UpdateDriverProgressPreview();
+                break;
+
+            case TrophyEditKind.StatValue1:
+                decimal whole = decimal.Truncate(value);
+                if (whole > ulong.MaxValue) throw new InvalidDataException("The value is too large for this save counter.");
+                SetStatValue1(target.Key, decimal.ToUInt64(whole));
+                break;
+
+            case TrophyEditKind.FloatCounter:
+                float f = (float)value;
+                if (float.IsNaN(f) || float.IsInfinity(f)) throw new InvalidDataException("The value is too large for this save counter.");
+                SetFloatCounter(target.Key, f);
+                break;
+        }
+    }
+
+    private void PrepDriverLevel50(bool oneBelow)
+    {
+        ulong target = ProgressionData.FameForDriverRank(50);
+        if (oneBelow && target > 0) target--;
+        _driverFame.Value = Math.Min((decimal)target, _driverFame.Maximum);
+        _driverFameDirty = true;
+        UpdateDriverProgressPreview();
+        PopulateTrophyPrep();
+        SetStatus(oneBelow ? "Driver Fame set one point below the Rank 50 threshold." : "Driver Fame set to the Rank 50 threshold.");
+    }
+
+    private void PrepDriftTrophy(bool oneBelow)
+    {
+        SetStatValue1("Drift", oneBelow ? 999_999UL : 1_000_000UL);
+        PopulateStatistics();
+        PopulateTrophyPrep();
+        SetStatus(oneBelow ? "Drift total set to 999,999 for a one-action trigger setup." : "Drift total set to 1,000,000.");
+    }
+
+    private void PrepFullHouse()
+    {
+        SetFloatCounter("fullhouse_won_in_hothatch", 1f);
+        SetFloatCounter("fullhouse_won_in_performance", 1f);
+        SetFloatCounter("fullhouse_won_in_sports", 1f);
+        SetFloatCounter("fullhouse_won_in_super", 1f);
+        SetFloatCounter("fullhouse_won_in_hyper", 0f);
+        PopulateTrophyPrep();
+        SetStatus("Full House prepared: four classes are marked, Hyper is left at 0 for the next qualifying race.");
+    }
+
+    private void PrepSoloChallengeWins(int wins)
+    {
+        SetFloatCounter("my_solo_challenges_won_for_trophies", wins);
+        PopulateTrophyPrep();
+        SetStatus($"My Solo Challenge trophy counter set to {wins}.");
+    }
+
+    private void SetFloatCounter(string key, float value)
+    {
+        if (_save is null) throw new InvalidOperationException("No save is loaded.");
+        if (_save.FindFloat(key) is not { } item)
+            throw new InvalidDataException($"The loaded save does not contain the expected profile counter '{key}'.");
+        item.Value = value;
+        foreach (DataGridViewRow row in _progressCounterGrid.Rows)
+            if (row.Tag is FloatCounterRowState state && ReferenceEquals(state.Entry, item))
+                row.Cells[2].Value = value.ToString("R", CultureInfo.InvariantCulture);
+        foreach (DataGridViewRow row in _profileFloatGrid.Rows)
+            if (row.Tag == item) row.Cells[1].Value = value.ToString("R", CultureInfo.InvariantCulture);
+    }
+
+    private void SetStatValue1(string name, ulong value)
+    {
+        if (_save is null) throw new InvalidOperationException("No save is loaded.");
+        if (_save.FindStats(name) is not { } item)
+            throw new InvalidDataException($"The loaded save does not contain the expected StatsStore entry '{name}'.");
+        item.Value1 = value;
+        foreach (DataGridViewRow row in _rawStatsGrid.Rows)
+            if (row.Tag == item) row.Cells[2].Value = value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void SetTargetDriverRank(int rank)
+    {
+        ulong fame = ProgressionData.FameForDriverRank(rank);
+        _targetDriverRank.Value = Math.Clamp(rank, 1, 120);
+        _driverFame.Value = Math.Min((decimal)fame, _driverFame.Maximum);
+        _driverFameDirty = true;
+        UpdateDriverProgressPreview();
+    }
+
+    private void UpdateDriverProgressPreview()
+    {
+        ulong fame = decimal.ToUInt64(_driverFame.Value);
+        int rank = ProgressionData.DriverRankForFame(fame);
+        _driverRankInfo.Text = $"{rank}";
+        _driverRankSub.Text = $"DRIVER RANK  /  120";
+
+        ulong currentFloor = ProgressionData.FameForDriverRank(rank);
+        ulong? next = ProgressionData.FameForNextDriverRank(fame);
+        if (next.HasValue)
+        {
+            ulong remaining = next.Value > fame ? next.Value - fame : 0;
+            ulong span = next.Value > currentFloor ? next.Value - currentFloor : 1;
