@@ -1,0 +1,400 @@
+        var privacy = new Label
+        {
+            Text = "The editor never receives or stores card, bank, PayPal login, or payment details. " +
+                   "Donating is optional and does not unlock or change any editor feature.",
+            AutoSize = false,
+            Location = new Point(27, 262),
+            Size = new Size(485, 42),
+            Font = new Font("Segoe UI", 8.5F),
+            ForeColor = TextSecondary
+        };
+        dialog.Controls.Add(privacy);
+
+        var cancel = MakeButton("CANCEL", false, 100);
+        cancel.Location = new Point(300, 311);
+        cancel.DialogResult = DialogResult.Cancel;
+        dialog.Controls.Add(cancel);
+
+        var openPayPal = MakeButton("OPEN PAYPAL", true, 122);
+        openPayPal.Location = new Point(410, 311);
+        openPayPal.Click += (_, _) =>
+        {
+            try
+            {
+                string url = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations" +
+                             "&business=" + Uri.EscapeDataString(paypalEmail) +
+                             "&item_name=" + Uri.EscapeDataString("Support Driveclub PS4 Save Editor");
+
+                if (amount.Value > 0)
+                    url += "&amount=" + amount.Value.ToString("0.00", CultureInfo.InvariantCulture);
+
+                if (currency.SelectedIndex > 0 && currency.SelectedItem is string selectedCurrency)
+                {
+                    string code = selectedCurrency.Split(' ', 2)[0];
+                    if (amount.Value > 0 && (code is "HUF" or "JPY" or "TWD") && amount.Value != decimal.Truncate(amount.Value))
+                    {
+                        MessageBox.Show(dialog,
+                            $"{code} does not support fractional amounts on PayPal. Enter a whole-number amount or set Amount to 0 and choose the amount on PayPal.",
+                            "PayPal Currency", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    url += "&currency_code=" + Uri.EscapeDataString(code);
+                }
+
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                dialog.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(dialog,
+                    "Could not open PayPal in the default browser.\n\n" + ex.Message +
+                    "\n\nPayPal recipient: " + paypalEmail,
+                    "PayPal", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+        dialog.Controls.Add(openPayPal);
+
+        dialog.AcceptButton = openPayPal;
+        dialog.CancelButton = cancel;
+        dialog.ShowDialog(this);
+    }
+
+    private Panel BuildSidebar()
+    {
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 226, BackColor = SidebarBack, Padding = new Padding(14, 20, 14, 18) };
+
+        var section = new Label
+        {
+            Text = "EDITOR",
+            Dock = DockStyle.Top,
+            Height = 28,
+            Padding = new Padding(10, 0, 0, 0),
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(104, 114, 134)
+        };
+        sidebar.Controls.Add(section);
+
+        string[] names = ["Dashboard", "Player", "Garage", "Customisation", "Progression", "Trophy Prep", "Statistics", "Advanced"];
+        for (int i = names.Length - 1; i >= 0; i--)
+        {
+            int index = i;
+            var button = new Button
+            {
+                Text = names[i],
+                Dock = DockStyle.Top,
+                Height = 48,
+                FlatStyle = FlatStyle.Flat,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(14, 0, 0, 0),
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                BackColor = SidebarBack,
+                ForeColor = TextSecondary,
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.Click += (_, _) => NavigateTo(index);
+            _navButtons.Insert(0, button);
+            sidebar.Controls.Add(button);
+        }
+
+        var info = new Panel { Dock = DockStyle.Bottom, Height = 106, BackColor = Surface };
+        info.Controls.Add(new Label
+        {
+            Text = "ALL REGIONS  •  v1.28",
+            AutoSize = true,
+            Location = new Point(14, 14),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            ForeColor = TextPrimary
+        });
+        info.Controls.Add(new Label
+        {
+            Text = "OFFLINE EDITOR\\nAUTO BACKUP\\nCHECKSUM REPAIR",
+            AutoSize = true,
+            Location = new Point(14, 39),
+            Font = new Font("Segoe UI", 8F),
+            ForeColor = TextSecondary
+        });
+        sidebar.Controls.Add(info);
+        return sidebar;
+    }
+
+    private Panel BuildPageHeader()
+    {
+        var panel = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppBack };
+        _pageTitle.AutoSize = true;
+        _pageTitle.Location = new Point(2, 18);
+        _pageTitle.Font = new Font("Segoe UI", 21F, FontStyle.Bold);
+        _pageTitle.ForeColor = TextPrimary;
+        _pageSubtitle.AutoSize = true;
+        _pageSubtitle.Location = new Point(4, 57);
+        _pageSubtitle.Font = new Font("Segoe UI", 9.5F);
+        _pageSubtitle.ForeColor = TextSecondary;
+        panel.Controls.Add(_pageTitle);
+        panel.Controls.Add(_pageSubtitle);
+        return panel;
+    }
+
+    private void NavigateTo(int index)
+    {
+        if (index < 0 || index >= _tabs.TabPages.Count) return;
+        _tabs.SelectedIndex = index;
+        _pageTitle.Text = PageInfo[index].Title;
+        _pageSubtitle.Text = PageInfo[index].Subtitle;
+        if (index == 5 && _save is not null) PopulateTrophyPrep();
+
+        for (int i = 0; i < _navButtons.Count; i++)
+        {
+            bool selected = i == index;
+            _navButtons[i].BackColor = selected ? SurfaceRaised : SidebarBack;
+            _navButtons[i].ForeColor = selected ? Color.White : TextSecondary;
+            _navButtons[i].FlatAppearance.BorderSize = 0;
+        }
+    }
+
+    private TabPage BuildOverviewTab()
+    {
+        var page = NewPage("Dashboard");
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = AppBack };
+
+        var metrics = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 138,
+            ColumnCount = 4,
+            RowCount = 1,
+            BackColor = AppBack,
+            Padding = new Padding(0, 0, 0, 14)
+        };
+        for (int i = 0; i < 4; i++) metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+        metrics.Controls.Add(MakeMetricCard("CHECKSUM", _homeChecksumValue, "Save integrity"), 0, 0);
+        metrics.Controls.Add(MakeMetricCard("DRIVER RANK", _homeRankValue, "Calculated progression"), 1, 0);
+        metrics.Controls.Add(MakeMetricCard("PLAYER FAME", _homeFameValue, "Game-facing Fame"), 2, 0);
+        metrics.Controls.Add(MakeMetricCard("VEHICLES", _homeVehiclesValue, "Detected in save"), 3, 0);
+
+        var quick = MakeCard("QUICK ACTIONS", "Common editor tasks", 118);
+        quick.Width = 1000;
+        var open = MakeButton("OPEN PROFILE.SAV", false, 150);
+        var player = MakeButton("EDIT PLAYER", true, 120);
+        var garage = MakeButton("OPEN GARAGE", false, 128);
+        var save = MakeButton("SAVE CHANGES", false, 130);
+        open.Location = new Point(20, 66);
+        player.Location = new Point(182, 66);
+        garage.Location = new Point(314, 66);
+        save.Location = new Point(454, 66);
+        open.Click += (_, _) => OpenSave();
+        player.Click += (_, _) => NavigateTo(1);
+        garage.Click += (_, _) => NavigateTo(2);
+        save.Click += (_, _) => SaveCurrent(false);
+        quick.Controls.Add(open);
+        quick.Controls.Add(player);
+        quick.Controls.Add(garage);
+        quick.Controls.Add(save);
+
+        var details = MakeCard("SAVE DETAILS", "Verified structures and current profile summary", 330);
+        details.Width = 1000;
+        _overviewBox.Location = new Point(20, 66);
+        _overviewBox.Size = new Size(900, 238);
+        _overviewBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+        _overviewBox.ReadOnly = true;
+        _overviewBox.BorderStyle = BorderStyle.None;
+        _overviewBox.BackColor = InputBack;
+        _overviewBox.ForeColor = TextSecondary;
+        _overviewBox.Font = new Font("Cascadia Mono", 10F);
+        _overviewBox.Text =
+            "No save loaded.\\n\\n" +
+            "Open a decrypted Driveclub v1.28 profile.sav from any region.\\n" +
+            "The editor creates a backup automatically and regenerates the internal checksum when saving.";
+        details.Controls.Add(_overviewBox);
+
+        quick.Dock = DockStyle.Top;
+        details.Dock = DockStyle.Top;
+        details.Margin = new Padding(0, 14, 0, 0);
+        var spacer = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = AppBack };
+
+        scroll.Controls.Add(details);
+        scroll.Controls.Add(spacer);
+        scroll.Controls.Add(quick);
+        scroll.Controls.Add(metrics);
+        page.Controls.Add(scroll);
+        return page;
+    }
+
+    private TabPage BuildPlayerTab()
+    {
+        var page = NewPage("Player");
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = AppBack };
+
+        var rankCard = MakeCard("DRIVER PROGRESS", "Real player.csv + Elite progression", 250);
+        rankCard.Width = 1000;
+        _driverRankInfo.Location = new Point(20, 72);
+        _driverRankInfo.Size = new Size(150, 62);
+        _driverRankInfo.Font = new Font("Segoe UI", 34F, FontStyle.Bold);
+        _driverRankInfo.ForeColor = Color.White;
+        _driverRankInfo.Text = "—";
+        rankCard.Controls.Add(_driverRankInfo);
+
+        _driverRankSub.Location = new Point(24, 136);
+        _driverRankSub.AutoSize = true;
+        _driverRankSub.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+        _driverRankSub.ForeColor = TextSecondary;
+        _driverRankSub.Text = "DRIVER RANK  /  120";
+        rankCard.Controls.Add(_driverRankSub);
+
+        var fameLabel = MakeFieldLabel("PLAYER FAME", 205, 72);
+        rankCard.Controls.Add(fameLabel);
+        _driverFame.Location = new Point(205, 96);
+        _driverFame.Size = new Size(220, 28);
+        _driverFame.Minimum = 0;
+        _driverFame.Maximum = 1_000_000_000;
+        _driverFame.ThousandsSeparator = true;
+        _driverFame.DecimalPlaces = 0;
+        StyleNumeric(_driverFame);
+        _driverFame.ValueChanged += (_, _) =>
+        {
+            if (_loadingFriendly) return;
+            _driverFameDirty = true;
+            UpdateDriverProgressPreview();
+        };
+        rankCard.Controls.Add(_driverFame);
+
+        rankCard.Controls.Add(MakeFieldLabel("TARGET RANK", 466, 72));
+        _targetDriverRank.Location = new Point(466, 96);
+        _targetDriverRank.Size = new Size(95, 28);
+        _targetDriverRank.Minimum = 1;
+        _targetDriverRank.Maximum = 120;
+        _targetDriverRank.Value = 120;
+        StyleNumeric(_targetDriverRank);
+        rankCard.Controls.Add(_targetDriverRank);
+
+        var applyRank = MakeButton("SET FAME", true, 108);
+        applyRank.Location = new Point(575, 94);
+        applyRank.Click += (_, _) => SetTargetDriverRank((int)_targetDriverRank.Value);
+        rankCard.Controls.Add(applyRank);
+
+        var maxRank = MakeButton("MAX RANK 120", false, 130);
+        maxRank.Location = new Point(695, 94);
+        maxRank.Click += (_, _) => SetTargetDriverRank(120);
+        rankCard.Controls.Add(maxRank);
+
+        _rankProgress.Location = new Point(205, 150);
+        _rankProgress.Size = new Size(620, 10);
+        _rankProgress.Minimum = 0;
+        _rankProgress.Maximum = 1000;
+        _rankProgress.Style = ProgressBarStyle.Continuous;
+        rankCard.Controls.Add(_rankProgress);
+
+        _driverFameInfo.Location = new Point(205, 174);
+        _driverFameInfo.AutoSize = true;
+        _driverFameInfo.ForeColor = TextSecondary;
+        _driverFameInfo.Text = "Load a save to calculate Fame progression.";
+        rankCard.Controls.Add(_driverFameInfo);
+
+        var featureCard = MakeCard("GAME FEATURES", "Enable or disable readable profile feature flags", 360);
+        featureCard.Width = 1000;
+        _features.Location = new Point(20, 70);
+        _features.Size = new Size(610, 236);
+        _features.BackColor = InputBack;
+        _features.ForeColor = TextPrimary;
+        _features.BorderStyle = BorderStyle.None;
+        _features.CheckOnClick = true;
+        _features.Font = new Font("Segoe UI", 9.5F);
+        foreach (var pair in FriendlyNames.FeatureLabels) _features.Items.Add(pair.Value);
+        featureCard.Controls.Add(_features);
+        var enableAll = MakeButton("ENABLE ALL FEATURES", false, 170);
+        enableAll.Location = new Point(650, 70);
+        enableAll.Click += (_, _) =>
+        {
+            for (int i = 0; i < _features.Items.Count; i++) _features.SetItemChecked(i, true);
+        };
+        featureCard.Controls.Add(enableAll);
+
+        var recentCard = MakeCard("RECENT VEHICLE", "Choose the car and bike used by the profile", 176);
+        recentCard.Width = 1000;
+        recentCard.Controls.Add(MakeFieldLabel("RECENT CAR", 20, 72));
+        recentCard.Controls.Add(MakeFieldLabel("RECENT BIKE", 470, 72));
+        ConfigureCombo(_recentCar, new Point(20, 98), 410);
+        ConfigureCombo(_recentBike, new Point(470, 98), 410);
+        recentCard.Controls.Add(_recentCar);
+        recentCard.Controls.Add(_recentBike);
+
+        rankCard.Dock = DockStyle.Top;
+        featureCard.Dock = DockStyle.Top;
+        recentCard.Dock = DockStyle.Top;
+        var gap1 = MakeGap(14);
+        var gap2 = MakeGap(14);
+        scroll.Controls.Add(recentCard);
+        scroll.Controls.Add(gap2);
+        scroll.Controls.Add(featureCard);
+        scroll.Controls.Add(gap1);
+        scroll.Controls.Add(rankCard);
+        page.Controls.Add(scroll);
+        return page;
+    }
+
+    private TabPage BuildGarageTab()
+    {
+        var page = NewPage("Garage");
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 74, BackColor = SurfaceRaised, Padding = new Padding(16) };
+        toolbar.Controls.Add(MakeFieldLabel("SEARCH VEHICLES", 16, 13));
+        _garageSearch.Location = new Point(16, 36);
+        _garageSearch.Size = new Size(310, 28);
+        StyleTextBox(_garageSearch);
+        _garageSearch.PlaceholderText = "Manufacturer, model or class...";
+        _garageSearch.TextChanged += (_, _) => ApplyGarageFilter();
+        toolbar.Controls.Add(_garageSearch);
+
+        var maxAll = MakeButton("MAX ALL LEVELS", true, 138);
+        maxAll.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        maxAll.Location = new Point(810, 24);
+        maxAll.Click += (_, _) => SetAllGarageLevels(15);
+        toolbar.Controls.Add(maxAll);
+        var maxSelected = MakeButton("MAX SELECTED", false, 135);
+        maxSelected.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        maxSelected.Location = new Point(665, 24);
+        maxSelected.Click += (_, _) => SetSelectedGarageLevel(15);
+        toolbar.Controls.Add(maxSelected);
+        toolbar.Resize += (_, _) =>
+        {
+            maxAll.Left = toolbar.ClientSize.Width - maxAll.Width - 16;
+            maxSelected.Left = maxAll.Left - maxSelected.Width - 10;
+        };
+
+        var note = MakeNote("Vehicle names are translated from internal IDs. Untouched vehicle Fame is preserved exactly; only a level you explicitly change is rewritten to Driveclub's verified progression threshold.", 58);
+
+        _garageGrid.Columns.Add("Vehicle", "VEHICLE");
+        _garageGrid.Columns.Add("Group", "CLASS / TYPE");
+        _garageGrid.Columns.Add("Level", "LEVEL 1–15");
+        _garageGrid.Columns.Add("Fame", "VEHICLE FAME / PROGRESS");
+        _garageGrid.Columns.Add("Code", "Internal ID");
+        _garageGrid.Columns[0].ReadOnly = true;
+        _garageGrid.Columns[1].ReadOnly = true;
+        _garageGrid.Columns[3].ReadOnly = true;
+        _garageGrid.Columns[4].ReadOnly = true;
+        _garageGrid.Columns[0].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _garageGrid.Columns[1].Width = 180;
+        _garageGrid.Columns[2].Width = 130;
+        _garageGrid.Columns[3].Width = 220;
+        _garageGrid.Columns[4].Visible = false;
+        _garageGrid.CellValueChanged += (_, e) =>
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex == 2)
+                UpdateGarageFamePreview(_garageGrid.Rows[e.RowIndex]);
+        };
+
+        page.Controls.Add(_garageGrid);
+        page.Controls.Add(note);
+        page.Controls.Add(toolbar);
+        return page;
+    }
+
+    private TabPage BuildCustomisationTab()
+    {
+        var page = NewPage("Customisation");
+        var note = MakeNote("Edits the confirmed CustomisationS1/S2 text stored in profile.sav. Designs, badges, fonts and decal names come from the extracted Driveclub livery editor assets. Unknown customisation lines are preserved.", 62);
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = AppBack, Padding = new Padding(0, 14, 0, 20) };
+
+        var slotCard = MakeCard("CUSTOMISATION SLOT", "Edit only the saved slot you choose", 128);
+        slotCard.Width = 1020;
+        slotCard.Controls.Add(MakeFieldLabel("SAVED SLOT", 20, 70));
+        ConfigureCombo(_customSlot, new Point(20, 92), 330);
