@@ -1,0 +1,200 @@
+        }
+        var confirm = MessageBox.Show(this,
+            "This clears the saved NEW/UNSEEN markers for the customisation categories currently present in AssetNewness.\n\nIt does NOT unlock liveries or DLC. Continue?",
+            "Mark customisation items seen",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+        if (confirm != DialogResult.Yes) return;
+
+        var matches = System.Text.RegularExpressions.Regex.Matches(entry.Value ?? string.Empty, @"@([^,@]+),");
+        if (matches.Count == 0)
+        {
+            SetStatus("AssetNewness did not contain recognised category markers.");
+            return;
+        }
+
+        var cleaned = new System.Text.StringBuilder();
+        foreach (System.Text.RegularExpressions.Match match in matches)
+            cleaned.Append('@').Append(match.Groups[1].Value).Append(',');
+        entry.Value = cleaned.ToString();
+        _customAssetSummary.Text = "Customisation NEW markers cleared • this does not change ownership/unlocks";
+        foreach (DataGridViewRow row in _profileGrid.Rows)
+            if (row.Tag == entry) row.Cells[1].Value = entry.Value;
+        SetStatus("All saved customisation newness markers were cleared. Save to apply.");
+    }
+
+    private void PopulateProgression()
+    {
+        if (_save is null) return;
+        _eliteGrid.Rows.Clear();
+        foreach (var row in ProgressionData.EliteRows)
+        {
+            int driverRank = 60 + row.Row;
+            string time = FormatMilliseconds(row.TargetTimeMs);
+            string track = FriendlyNames.GetTrack(row.TrackId);
+            string vehicle = FriendlyNames.GetVehicle(row.VehicleId).Name;
+            int ri = _eliteGrid.Rows.Add($"Elite {row.Row} / Rank {driverRank}", row.FameRequired.ToString("N0", CultureInfo.InvariantCulture), row.TourStarsRequired, time, track, vehicle);
+            _eliteGrid.Rows[ri].Tag = row;
+        }
+
+        _progressCounterGrid.Rows.Clear();
+        foreach (var item in _save.FloatEntries)
+        {
+            var label = ProfileLabels.GetCounter(item.Name);
+            int ri = _progressCounterGrid.Rows.Add(label.Category, label.Name, item.Value.ToString("R", CultureInfo.InvariantCulture), item.Name);
+            _progressCounterGrid.Rows[ri].Tag = new FloatCounterRowState(item, item.Value);
+        }
+    }
+
+    private static string FormatMilliseconds(uint ms)
+    {
+        if (ms == 0) return "—";
+        TimeSpan t = TimeSpan.FromMilliseconds(ms);
+        return t.TotalHours >= 1
+            ? t.ToString(@"h\:mm\:ss\.fff", CultureInfo.InvariantCulture)
+            : t.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture);
+    }
+
+    private void SetSelectedEliteFame()
+    {
+        if (_eliteGrid.CurrentRow?.Tag is not ProgressionData.EliteRow row) return;
+        _driverFame.Value = Math.Min((decimal)row.FameRequired, _driverFame.Maximum);
+        _driverFameDirty = true;
+        UpdateDriverProgressPreview();
+        PopulateTrophyPrep();
+        SetStatus($"Player Fame prepared for Elite {row.Row} / Driver Rank {60 + row.Row}. Tour stars were not changed.");
+    }
+
+    private void CommitProgressionCounters()
+    {
+        foreach (DataGridViewRow row in _progressCounterGrid.Rows)
+        {
+            if (row.Tag is not FloatCounterRowState state) continue;
+            var item = state.Entry;
+            string text = Convert.ToString(row.Cells[2].Value) ?? string.Empty;
+            if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) || float.IsNaN(value) || float.IsInfinity(value))
+                throw new InvalidDataException($"{ProfileLabels.GetCounter(item.Name).Name} must be a finite decimal number.");
+
+            bool normalChanged = BitConverter.SingleToInt32Bits(value) != BitConverter.SingleToInt32Bits(state.OriginalValue);
+            if (!normalChanged)
+                continue;
+
+            bool advancedChanged = BitConverter.SingleToInt32Bits(item.Value) != BitConverter.SingleToInt32Bits(state.OriginalValue);
+            if (advancedChanged && BitConverter.SingleToInt32Bits(item.Value) != BitConverter.SingleToInt32Bits(value))
+                throw new InvalidDataException($"{ProfileLabels.GetCounter(item.Name).Name} was edited in both Progression and Advanced with different values.");
+
+            item.Value = value;
+        }
+    }
+
+    private void CaptureTrophyOriginalValues()
+    {
+        _trophyOriginalValues.Clear();
+        if (_save is null) return;
+
+        _trophyOriginalValues["FAME"] = Math.Max(0, _save.EffectivePlayerFame);
+        if (_save.FindStats("Drift")?.Value1 is ulong drift)
+            _trophyOriginalValues["STAT:Drift"] = drift;
+
+        foreach (var item in _save.FloatEntries)
+            _trophyOriginalValues["FLOAT:" + item.Name] = (decimal)item.Value;
+    }
+
+    private decimal OriginalTrophyValue(TrophyEditKind kind, string key, decimal fallback)
+    {
+        string storageKey = kind switch
+        {
+            TrophyEditKind.Fame => "FAME",
+            TrophyEditKind.StatValue1 => "STAT:" + key,
+            _ => "FLOAT:" + key
+        };
+        return _trophyOriginalValues.TryGetValue(storageKey, out decimal value) ? value : fallback;
+    }
+
+    private void PopulateTrophyPrep()
+    {
+        if (_save is null) return;
+        _trophyGrid.Rows.Clear();
+
+        decimal fame = _driverFame.Value;
+        AddEditableTrophyRow("Level Up!", "Player Fame", ProgressionData.FameForDriverRank(2), "Driver Level 2", fame, TrophyEditKind.Fame, "FAME");
+        AddEditableTrophyRow("5 And Counting", "Player Fame", ProgressionData.FameForDriverRank(5), "Driver Level 5", fame, TrophyEditKind.Fame, "FAME");
+        AddEditableTrophyRow("Making Waves", "Player Fame", ProgressionData.FameForDriverRank(15), "Driver Level 15", fame, TrophyEditKind.Fame, "FAME");
+        AddEditableTrophyRow("Life Begins", "Player Fame", ProgressionData.FameForDriverRank(30), "Driver Level 30", fame, TrophyEditKind.Fame, "FAME");
+        AddEditableTrophyRow("Welcome To The Limit", "Player Fame", ProgressionData.FameForDriverRank(50), "Driver Level 50", fame, TrophyEditKind.Fame, "FAME");
+
+        decimal drift = _save.FindStats("Drift")?.Value1 ?? 0UL;
+        AddEditableTrophyRow("Hoon-a-tic", "Total Drift Points", 1_000_000m, "1,000,000 Drift Points", drift, TrophyEditKind.StatValue1, "Drift");
+
+        AddFloatTrophyRow("Full House — Hot Hatch", "Hot Hatch Race Wins", "fullhouse_won_in_hothatch", 1m, "1 qualifying win");
+        AddFloatTrophyRow("Full House — Performance", "Performance Race Wins", "fullhouse_won_in_performance", 1m, "1 qualifying win");
+        AddFloatTrophyRow("Full House — Sports", "Sports Race Wins", "fullhouse_won_in_sports", 1m, "1 qualifying win");
+        AddFloatTrophyRow("Full House — Super", "Super Race Wins", "fullhouse_won_in_super", 1m, "1 qualifying win");
+        AddFloatTrophyRow("Full House — Hyper", "Hyper Race Wins", "fullhouse_won_in_hyper", 1m, "1 qualifying win");
+
+        AddFloatTrophyRow("Unbeatable", "My Solo Challenges Won", "my_solo_challenges_won_for_trophies", 5m, "5 wins — legacy online-dependent");
+        AddFloatTrophyRow("Challenge Trophy Counter", "Challenges Won", "challenges_won_for_trophies", null, "Custom / mapping not fully proven");
+        AddFloatTrophyRow("Solo Challenge Counter", "Solo Challenges Won", "solo_challenges_won_for_trophies", null, "Custom / mapping not fully proven");
+        AddFloatTrophyRow("Bike Race Counter", "Superbike Race Wins", "fullhouse_won_in_superbike", null, "Custom");
+
+        AddFloatTrophyRow("Face-Off", "Face-Off Trophy Progress", "faceoff_value", null, "50 Face-Offs — internal unit unverified");
+        AddFloatTrophyRow("Long Distance", "Long Distance Counter", "longdistance_value", null, "300 miles / 483 km — internal unit unverified");
+        AddFloatTrophyRow("Lifer", "Lifer Distance Counter", "lifer_value", null, "1000 miles / 1610 km — internal unit unverified");
+
+        AddFloatTrophyRow("Accolades — Vehicles", "Best Vehicle Accolade Progress", "best_in_accolade_group_cars", null, "Custom");
+        AddFloatTrophyRow("Accolades — Events", "Best Event Accolade Progress", "best_in_accolade_group_event", null, "Custom");
+        AddFloatTrophyRow("Accolades — Gameplay", "Best Gameplay Accolade Progress", "best_in_accolade_group_gameplay", null, "Custom");
+        AddFloatTrophyRow("Accolades — Race", "Best Race / Game Mode Accolade Progress", "best_in_accolade_group_race", null, "Custom");
+
+        string custom = _save.FindString("CustomisationS1")?.Value ?? string.Empty;
+        AddReadOnlyTrophyRow("This One Is Mine", "Saved Customisation", "Customise a vehicle", string.IsNullOrWhiteSpace(custom) ? "No saved customisation" : "Customisation slot present", !string.IsNullOrWhiteSpace(custom));
+    }
+
+    private void AddFloatTrophyRow(string trophy, string fieldName, string key, decimal? requirement, string requirementText)
+    {
+        if (_save?.FindFloat(key) is not { } item) return;
+        decimal current = (decimal)ReadPendingFloat(key);
+        AddEditableTrophyRow(trophy, fieldName, requirement, requirementText, current, TrophyEditKind.FloatCounter, key);
+    }
+
+    private void AddEditableTrophyRow(string trophy, string fieldName, decimal? requirement, string requirementText, decimal current, TrophyEditKind kind, string key)
+    {
+        bool ready = requirement.HasValue && current >= requirement.Value;
+        string currentText = kind == TrophyEditKind.StatValue1 || kind == TrophyEditKind.Fame
+            ? decimal.Truncate(current).ToString("N0", CultureInfo.InvariantCulture)
+            : current.ToString("0.###", CultureInfo.InvariantCulture);
+        string editText = kind == TrophyEditKind.StatValue1 || kind == TrophyEditKind.Fame
+            ? decimal.Truncate(current).ToString(CultureInfo.InvariantCulture)
+            : current.ToString(CultureInfo.InvariantCulture); // preserve the exact loaded float value unless the user edits it
+
+        int ri = _trophyGrid.Rows.Add(trophy, fieldName, requirementText, currentText, editText, requirement.HasValue ? (ready ? "READY / MET" : "NOT YET") : "CUSTOM");
+        decimal original = OriginalTrophyValue(kind, key, current);
+        _trophyGrid.Rows[ri].Tag = new TrophyEditTarget(kind, key, requirement, requirementText, current, original);
+        _trophyGrid.Rows[ri].Cells[5].Style.ForeColor = requirement.HasValue ? (ready ? Success : TextSecondary) : Warning;
+    }
+
+    private void AddReadOnlyTrophyRow(string trophy, string fieldName, string requirement, string current, bool ready)
+    {
+        int ri = _trophyGrid.Rows.Add(trophy, fieldName, requirement, current, "—", ready ? "READY / MET" : "NOT YET");
+        _trophyGrid.Rows[ri].Cells[4].ReadOnly = true;
+        _trophyGrid.Rows[ri].Cells[4].Style.ForeColor = TextSecondary;
+        _trophyGrid.Rows[ri].Cells[5].Style.ForeColor = ready ? Success : TextSecondary;
+    }
+
+    private float ReadPendingFloat(string key)
+    {
+        foreach (DataGridViewRow row in _progressCounterGrid.Rows)
+        {
+            if (row.Tag is FloatCounterRowState state && string.Equals(state.Entry.Name, key, StringComparison.Ordinal))
+            {
+                string text = Convert.ToString(row.Cells[2].Value) ?? string.Empty;
+                if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value)) return value;
+            }
+        }
+        return _save?.FindFloat(key)?.Value ?? 0f;
+    }
+
+    private void CommitTrophyPrepEdits()
+    {
+        var pending = new Dictionary<string, (TrophyEditTarget Target, decimal Value, string Trophy)>(StringComparer.Ordinal);
+        foreach (DataGridViewRow row in _trophyGrid.Rows)
