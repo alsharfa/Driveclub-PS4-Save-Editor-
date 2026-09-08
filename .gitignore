@@ -1,0 +1,43 @@
+# .NET build output
+**/bin/
+**/obj/
+**/publish/
+artifacts/
+TestResults/
+
+# Visual Studio / IDE
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet / tooling
+packages/
+.nuget/
+
+# User save data and backups
+*.sav
+*.bak
+*.tmp
+*.temp
+
+# Logs / crash dumps
+*.log
+*.dmp
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Python/cache files if local helper scripts are used
+__pycache__/
+*.py[cod]
+
+# Local release archives
+*.zip
+*.7z
+*.rar
