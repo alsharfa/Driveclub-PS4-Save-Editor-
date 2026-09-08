@@ -1,0 +1,200 @@
+        }
+    }
+
+    private static void SetOptionalRawCell(DataGridViewCell cell, bool exists)
+    {
+        cell.ReadOnly = !exists;
+        if (!exists)
+        {
+            cell.Style.BackColor = Color.FromArgb(42, 42, 42);
+            cell.Style.ForeColor = Color.DimGray;
+        }
+    }
+
+    private static ulong ParseULong(DataGridViewCell cell, string name, string field)
+    {
+        string text = Convert.ToString(cell.Value) ?? "";
+        if (!ulong.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong value))
+            throw new InvalidDataException($"{name} {field} must be an unsigned 64-bit integer.");
+        return value;
+    }
+
+    private static uint ParseUInt(DataGridViewCell cell, string name, string field)
+    {
+        string text = Convert.ToString(cell.Value) ?? "";
+        if (!uint.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint value))
+            throw new InvalidDataException($"{name} {field} must be an unsigned 32-bit integer.");
+        return value;
+    }
+
+    private static bool IsTrue(string? value) =>
+        string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) || value == "1";
+
+    private static Panel MakeMetricCard(string title, Label valueLabel, string subtitle)
+    {
+        var card = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 12, 0), BackColor = Surface, Padding = new Padding(18) };
+        card.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(Border), 0, 0, card.Width - 1, card.Height - 1);
+        var titleLabel = new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Location = new Point(18, 16),
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            ForeColor = TextSecondary
+        };
+        valueLabel.AutoSize = true;
+        valueLabel.Location = new Point(18, 43);
+        valueLabel.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
+        valueLabel.ForeColor = TextPrimary;
+        valueLabel.Text = "—";
+        var sub = new Label
+        {
+            Text = subtitle,
+            AutoSize = true,
+            Location = new Point(20, 84),
+            Font = new Font("Segoe UI", 8.5F),
+            ForeColor = TextSecondary
+        };
+        card.Controls.Add(titleLabel);
+        card.Controls.Add(valueLabel);
+        card.Controls.Add(sub);
+        return card;
+    }
+
+    private static Panel MakeCard(string title, string subtitle, int height)
+    {
+        var card = new Panel { Height = height, BackColor = Surface, Padding = new Padding(0), Margin = new Padding(0) };
+        card.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Border);
+            e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+        };
+        var accent = new Panel { Location = new Point(0, 0), Size = new Size(4, 54), BackColor = Accent };
+        card.Controls.Add(accent);
+        card.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Location = new Point(20, 14),
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            ForeColor = TextPrimary
+        });
+        card.Controls.Add(new Label
+        {
+            Text = subtitle,
+            AutoSize = true,
+            Location = new Point(20, 36),
+            Font = new Font("Segoe UI", 8.5F),
+            ForeColor = TextSecondary
+        });
+        return card;
+    }
+
+    private static Label MakeFieldLabel(string text, int x, int y) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        Location = new Point(x, y),
+        Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+        ForeColor = TextSecondary
+    };
+
+    private static Panel MakeGap(int height) => new() { Dock = DockStyle.Top, Height = height, BackColor = AppBack };
+
+    private static Label MakeNote(string text, int height, Color? accent = null)
+    {
+        var label = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = height,
+            Padding = new Padding(14, 12, 14, 0),
+            Text = text,
+            BackColor = SurfaceRaised,
+            ForeColor = TextSecondary
+        };
+        if (accent.HasValue) label.ForeColor = accent.Value;
+        return label;
+    }
+
+    private static TabPage NewPage(string title) => new(title)
+    {
+        BackColor = AppBack,
+        ForeColor = TextPrimary,
+        Padding = new Padding(0)
+    };
+
+    private static DataGridView CreateGrid()
+    {
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            RowHeadersVisible = false,
+            MultiSelect = false,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            BackgroundColor = AppBack,
+            GridColor = Border,
+            BorderStyle = BorderStyle.None,
+            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+            ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
+            EnableHeadersVisualStyles = false,
+            ColumnHeadersHeight = 40,
+            ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+            AutoGenerateColumns = false
+        };
+        grid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = SurfaceRaised,
+            ForeColor = TextSecondary,
+            SelectionBackColor = SurfaceRaised,
+            SelectionForeColor = TextSecondary,
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Padding = new Padding(8, 0, 0, 0)
+        };
+        grid.DefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = Surface,
+            ForeColor = TextPrimary,
+            SelectionBackColor = Color.FromArgb(48, 58, 88),
+            SelectionForeColor = Color.White,
+            Font = new Font("Segoe UI", 9.5F),
+            Padding = new Padding(8, 0, 0, 0)
+        };
+        grid.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(26, 31, 40), ForeColor = TextPrimary };
+        grid.RowTemplate.Height = 34;
+        return grid;
+    }
+
+    private static Button MakeButton(string text, bool primary = false, int width = 120)
+    {
+        var normal = primary ? Accent : SurfaceRaised;
+        var hover = primary ? AccentHover : Color.FromArgb(40, 47, 59);
+        var button = new Button
+        {
+            Text = text,
+            Width = width,
+            Height = 34,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = normal,
+            ForeColor = Color.White,
+            Margin = new Padding(5, 0, 5, 0),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            TabStop = false
+        };
+        button.FlatAppearance.BorderSize = primary ? 0 : 1;
+        button.FlatAppearance.BorderColor = Border;
+        button.MouseEnter += (_, _) => button.BackColor = hover;
+        button.MouseLeave += (_, _) => button.BackColor = normal;
+        return button;
+    }
+
+    private static void StyleNumeric(NumericUpDown numeric)
+    {
+        numeric.BackColor = InputBack;
+        numeric.ForeColor = TextPrimary;
+        numeric.BorderStyle = BorderStyle.FixedSingle;
+        numeric.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+    }
