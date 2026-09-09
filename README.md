@@ -17,6 +17,7 @@ The editor is title-ID neutral: it does not require CUSA00003 and accepts compat
 - Friendly statistics and an Advanced raw-data view
 - Automatic backups when overwriting a save
 - Driveclub checksum regeneration and structural validation
+- Verified save-side Cheats page with conservative presets
 
 ## Save safety
 
@@ -86,6 +87,24 @@ Mapped values can be edited directly with quick actions such as:
 - Apply Value
 
 Some counters have confirmed save locations but unknown in-game unit conversions; those remain raw numeric values rather than using an invented conversion.
+
+
+### Cheats
+
+The Cheats page groups only fields that were confirmed in the v1.28 save and matched against game/UI strings:
+
+- Max Driver Rank 120 shortcut
+- Max All Vehicles shortcut
+- Enable All mapped feature flags
+- Tour Easy shortcut
+- `FGEComplete` first-game-experience flag
+- Free Play difficulty (`Rookie` through `Legend`)
+- Free Play opponents (`0 = Random`, `1–11`)
+- Free Play laps (`0 = Random`, `1–25`)
+- Opponent vehicle rule (`Player Class` / `Player Vehicle`)
+- one-click Easy Race preset: Rookie, 1 opponent, 1 lap
+
+The editor deliberately does **not** expose `InPlus_*` as DLC unlocks, `SFV*` as ownership flags, or `tourcompleted*` as a blanket Tour unlock. EBOOT/UI analysis shows those fields belong to commerce/entitlement, customisation persistence, or Tour/star bookkeeping and treating them as generic cheats would be unsafe. Auto Drive / `AutoPilot` is a runtime EBOOT feature and is not stored in `profile.sav`.
 
 ### Advanced
 
