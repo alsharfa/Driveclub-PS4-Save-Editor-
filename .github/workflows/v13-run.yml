@@ -1,0 +1,31 @@
+name: Run v1.3 Update
+
+on:
+  push:
+    paths:
+      - '.github/workflows/v13-run.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v1.3 source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '/cat > \/tmp\/v13.patch <<'"'"'PATCH'"'"'/{capture=1; next} capture && /^          PATCH$/{exit} capture {print}' .github/workflows/v13-cheats.yml > /tmp/v13.patch
+          sed -i 's/^          //' /tmp/v13.patch
+          git apply --check -p3 /tmp/v13.patch
+          git apply -p3 /tmp/v13.patch
+          grep -q '<Version>1.3.0</Version>' DriveclubSaveEditor/DriveclubSaveEditor.csproj
+          grep -q 'private TabPage BuildCheatsTab()' DriveclubSaveEditor/MainForm.cs
+          ! grep -RniE 'donat|paypal|mohammedar@btinternet.com' DriveclubSaveEditor README.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add DriveclubSaveEditor/MainForm.cs DriveclubSaveEditor/DriveclubSaveEditor.csproj README.md build.bat
+          git commit -m 'Add verified save cheats page'
+          git push
