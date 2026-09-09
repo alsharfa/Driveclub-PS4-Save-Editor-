@@ -1,0 +1,104 @@
+name: Publish v1.3.0 Release
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-v1.3.0-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore .\DriveclubSaveEditor\DriveclubSaveEditor.csproj
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build .\DriveclubSaveEditor\DriveclubSaveEditor.csproj -c Release --no-restore
+
+      - name: Publish Windows x64 single-file app
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .\artifacts\publish | Out-Null
+          dotnet publish .\DriveclubSaveEditor\DriveclubSaveEditor.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o .\artifacts\publish
+
+      - name: Package release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $appStage = '.\artifacts\app'
+          New-Item -ItemType Directory -Force -Path $appStage | Out-Null
+          Copy-Item '.\artifacts\publish\Driveclub PS4 Save Editor.exe' $appStage
+          @'
+          Driveclub PS4 Save Editor v1.3
+
+          Windows x64 build.
+          Requires the Microsoft .NET 8 Desktop Runtime (x64).
+          Open a decrypted Driveclub v1.28 profile.sav, edit the desired values, then save a copy first for testing.
+          '@ | Set-Content -Encoding UTF8 "$appStage\README.txt"
+          Compress-Archive -Path "$appStage\*" -DestinationPath '.\artifacts\Driveclub_PS4_Save_Editor_v1.3_Windows_x64.zip' -Force
+
+          $sourceRoot = '.\artifacts\source\Driveclub-PS4-Save-Editor-v1.3'
+          New-Item -ItemType Directory -Force -Path $sourceRoot | Out-Null
+          Copy-Item '.\.gitignore' $sourceRoot
+          Copy-Item '.\README.md' $sourceRoot
+          Copy-Item '.\build.bat' $sourceRoot
+          Copy-Item '.\DriveclubSaveEditor' $sourceRoot -Recurse
+          Get-ChildItem $sourceRoot -Directory -Recurse | Where-Object { $_.Name -in @('bin','obj') } | Remove-Item -Recurse -Force
+          Compress-Archive -Path "$sourceRoot\*" -DestinationPath '.\artifacts\Driveclub_PS4_Save_Editor_v1.3_Clean_Source.zip' -Force
+
+          @'
+          ## Driveclub PS4 Save Editor v1.3
+
+          This release contains the cleaned Windows editor source and a compiled Windows x64 package.
+
+          ### Highlights
+          - Refined dark UI and sidebar navigation
+          - Driver Fame and Driver Rank editing up to Rank 120
+          - Garage vehicle Level 1-15 editing with safe untouched-value preservation
+          - Customisation and livery editing
+          - Progression and editable Trophy Prep counters
+          - Verified save-side Cheats page with conservative presets
+          - Automatic backups, checksum regeneration, structure validation and conflict checks
+
+          ### Cheats page
+          Includes Max Driver Rank, Max All Vehicles, mapped feature flags, Tour Easy, FGEComplete and saved Free Play settings such as AI difficulty, opponents and laps.
+
+          Auto Drive / AutoPilot is not stored in profile.sav and is therefore not included as a save-editor cheat.
+
+          ### Important
+          The editor expects a decrypted Driveclub v1.28 profile.sav. Always keep the original save and test edited copies before replacing console data.
+          '@ | Set-Content -Encoding UTF8 '.\artifacts\RELEASE_NOTES.md'
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.3.0 `
+            '.\artifacts\Driveclub_PS4_Save_Editor_v1.3_Windows_x64.zip' `
+            '.\artifacts\Driveclub_PS4_Save_Editor_v1.3_Clean_Source.zip' `
+            --repo '${{ github.repository }}' `
+            --target main `
+            --title 'Driveclub PS4 Save Editor v1.3' `
+            --notes-file '.\artifacts\RELEASE_NOTES.md'
