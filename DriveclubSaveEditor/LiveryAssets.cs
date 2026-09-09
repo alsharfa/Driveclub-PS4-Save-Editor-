@@ -56,12 +56,6 @@ internal static class LiveryAssets
         return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s);
     }
 
-    internal static Choice? FindChoice(IEnumerable<Choice> choices, string? id)
-    {
-        if (id is null) return null;
-        return choices.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.Ordinal));
-    }
-
     private static string ReadEmbeddedText(string fileName)
     {
         Assembly assembly = typeof(LiveryAssets).Assembly;

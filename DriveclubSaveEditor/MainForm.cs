@@ -1779,25 +1779,6 @@ public sealed class MainForm : Form
         }
     }
 
-    private void PrepDriverLevel50(bool oneBelow)
-    {
-        ulong target = ProgressionData.FameForDriverRank(50);
-        if (oneBelow && target > 0) target--;
-        _driverFame.Value = Math.Min((decimal)target, _driverFame.Maximum);
-        _driverFameDirty = true;
-        UpdateDriverProgressPreview();
-        PopulateTrophyPrep();
-        SetStatus(oneBelow ? "Driver Fame set one point below the Rank 50 threshold." : "Driver Fame set to the Rank 50 threshold.");
-    }
-
-    private void PrepDriftTrophy(bool oneBelow)
-    {
-        SetStatValue1("Drift", oneBelow ? 999_999UL : 1_000_000UL);
-        PopulateStatistics();
-        PopulateTrophyPrep();
-        SetStatus(oneBelow ? "Drift total set to 999,999 for a one-action trigger setup." : "Drift total set to 1,000,000.");
-    }
-
     private void PrepFullHouse()
     {
         SetFloatCounter("fullhouse_won_in_hothatch", 1f);
