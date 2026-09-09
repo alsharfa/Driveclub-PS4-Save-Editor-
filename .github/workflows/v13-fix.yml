@@ -1,0 +1,26 @@
+name: Fix v1.3 Update
+
+on:
+  push:
+    paths:
+      - '.github/workflows/v13-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Correct patch path stripping
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/git apply --check -p2/git apply --check -p3/; s/git apply -p2/git apply -p3/' .github/workflows/v13-cheats.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/v13-cheats.yml
+          git rm .github/workflows/v13-fix.yml
+          git commit -m 'Fix v1.3 update workflow'
+          git push
