@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 
 namespace DriveclubSaveEditor;
@@ -31,20 +30,23 @@ public sealed class MainForm : Form
 
     private readonly Dictionary<string, decimal> _trophyOriginalValues = new(StringComparer.Ordinal);
 
-    // Pro UI palette. No third-party UI framework is required.
-    private static readonly Color AppBack = Color.FromArgb(15, 17, 22);
-    private static readonly Color SidebarBack = Color.FromArgb(19, 22, 29);
-    private static readonly Color Surface = Color.FromArgb(24, 28, 36);
-    private static readonly Color SurfaceRaised = Color.FromArgb(30, 35, 45);
-    private static readonly Color InputBack = Color.FromArgb(20, 24, 31);
-    private static readonly Color Border = Color.FromArgb(46, 53, 66);
-    private static readonly Color Accent = Color.FromArgb(85, 112, 255);
-    private static readonly Color AccentHover = Color.FromArgb(105, 130, 255);
-    private static readonly Color TextPrimary = Color.FromArgb(240, 243, 250);
-    private static readonly Color TextSecondary = Color.FromArgb(157, 166, 184);
-    private static readonly Color Success = Color.FromArgb(78, 201, 151);
-    private static readonly Color Warning = Color.FromArgb(240, 183, 82);
-    private static readonly Color Danger = Color.FromArgb(244, 103, 112);
+    // Refined dark UI palette. No third-party UI framework is required.
+    private static readonly Color AppBack = Color.FromArgb(10, 13, 18);
+    private static readonly Color SidebarBack = Color.FromArgb(13, 17, 23);
+    private static readonly Color Surface = Color.FromArgb(20, 25, 33);
+    private static readonly Color SurfaceRaised = Color.FromArgb(27, 33, 43);
+    private static readonly Color SurfaceHover = Color.FromArgb(34, 42, 54);
+    private static readonly Color InputBack = Color.FromArgb(16, 21, 28);
+    private static readonly Color Border = Color.FromArgb(43, 52, 66);
+    private static readonly Color Accent = Color.FromArgb(56, 111, 246);
+    private static readonly Color AccentHover = Color.FromArgb(78, 132, 255);
+    private static readonly Color AccentSoft = Color.FromArgb(25, 48, 96);
+    private static readonly Color TextPrimary = Color.FromArgb(245, 247, 252);
+    private static readonly Color TextSecondary = Color.FromArgb(158, 168, 187);
+    private static readonly Color TextMuted = Color.FromArgb(103, 115, 136);
+    private static readonly Color Success = Color.FromArgb(76, 205, 155);
+    private static readonly Color Warning = Color.FromArgb(241, 184, 83);
+    private static readonly Color Danger = Color.FromArgb(245, 105, 114);
 
     private DriveclubSave? _save;
 
@@ -128,8 +130,8 @@ public sealed class MainForm : Form
     {
         Text = "Driveclub PS4 Save Editor";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(1180, 760);
-        Size = new Size(1440, 900);
+        MinimumSize = new Size(1220, 780);
+        Size = new Size(1480, 920);
         Font = new Font("Segoe UI", 10F);
         BackColor = AppBack;
         ForeColor = TextPrimary;
@@ -155,7 +157,7 @@ public sealed class MainForm : Form
         var sidebar = BuildSidebar();
         var pageHeader = BuildPageHeader();
 
-        var content = new Panel { Dock = DockStyle.Fill, BackColor = AppBack, Padding = new Padding(22, 0, 22, 18) };
+        var content = new Panel { Dock = DockStyle.Fill, BackColor = AppBack, Padding = new Padding(26, 0, 26, 20) };
         content.Controls.Add(_tabs);
         content.Controls.Add(pageHeader);
 
@@ -163,10 +165,10 @@ public sealed class MainForm : Form
         workspace.Controls.Add(content);
         workspace.Controls.Add(sidebar);
 
-        var statusPanel = new Panel { Dock = DockStyle.Bottom, Height = 32, BackColor = SidebarBack };
-        var statusAccent = new Panel { Dock = DockStyle.Left, Width = 4, BackColor = Accent };
+        var statusPanel = new Panel { Dock = DockStyle.Bottom, Height = 36, BackColor = SidebarBack };
+        var statusAccent = new Panel { Dock = DockStyle.Left, Width = 3, BackColor = Accent };
         _statusLabel.Dock = DockStyle.Fill;
-        _statusLabel.Padding = new Padding(14, 7, 0, 0);
+        _statusLabel.Padding = new Padding(16, 9, 0, 0);
         _statusLabel.ForeColor = TextSecondary;
         _statusLabel.Text = "Ready. Open a decrypted Driveclub profile.sav to begin.";
         statusPanel.Controls.Add(_statusLabel);
@@ -181,21 +183,26 @@ public sealed class MainForm : Form
 
     private Panel BuildHeader()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = Surface, Padding = new Padding(0) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 84, BackColor = Surface, Padding = new Padding(0) };
         header.Paint += (_, e) =>
         {
             using var pen = new Pen(Border);
             e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
         };
 
-        var brand = new Panel { Dock = DockStyle.Left, Width = 226, BackColor = SidebarBack };
-        var logoBlock = new Panel { Location = new Point(22, 18), Size = new Size(38, 38), BackColor = Accent };
+        var brand = new Panel { Dock = DockStyle.Left, Width = 248, BackColor = SidebarBack };
+        var logoBlock = new Panel { Location = new Point(20, 20), Size = new Size(44, 44), BackColor = Accent };
+        logoBlock.Paint += (_, e) =>
+        {
+            using var pen = new Pen(AccentHover);
+            e.Graphics.DrawRectangle(pen, 0, 0, logoBlock.Width - 1, logoBlock.Height - 1);
+        };
         var logo = new Label
         {
             Text = "DC",
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+            Font = new Font("Segoe UI", 11.5F, FontStyle.Bold),
             ForeColor = Color.White
         };
         logoBlock.Controls.Add(logo);
@@ -204,15 +211,15 @@ public sealed class MainForm : Form
         {
             Text = "DRIVECLUB",
             AutoSize = true,
-            Location = new Point(72, 17),
-            Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+            Location = new Point(78, 20),
+            Font = new Font("Segoe UI", 13.5F, FontStyle.Bold),
             ForeColor = TextPrimary
         });
         brand.Controls.Add(new Label
         {
-            Text = "SAVE EDITOR  •  PRO",
+            Text = "PS4 SAVE EDITOR",
             AutoSize = true,
-            Location = new Point(73, 43),
+            Location = new Point(79, 47),
             Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
             ForeColor = TextSecondary
         });
@@ -220,42 +227,46 @@ public sealed class MainForm : Form
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Right,
-            Width = 448,
+            Width = 356,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Padding = new Padding(0, 20, 18, 0),
+            Padding = new Padding(0, 23, 18, 0),
             BackColor = Surface
         };
-        var save = MakeButton("SAVE", true, 88);
-        var saveAs = MakeButton("SAVE COPY", false, 104);
-        var open = MakeButton("OPEN SAVE", false, 108);
-        var donate = MakeButton("DONATE", false, 92);
-        donate.ForeColor = Warning;
-        donate.FlatAppearance.BorderColor = Color.FromArgb(112, 88, 46);
+        var save = MakeButton("SAVE", true, 86);
+        var saveAs = MakeButton("SAVE COPY", false, 108);
+        var open = MakeButton("OPEN SAVE", false, 110);
         save.Click += (_, _) => SaveCurrent(false);
         saveAs.Click += (_, _) => SaveCurrent(true);
         open.Click += (_, _) => OpenSave();
-        donate.Click += (_, _) => ShowDonateDialog();
         actions.Controls.Add(save);
         actions.Controls.Add(saveAs);
         actions.Controls.Add(open);
-        actions.Controls.Add(donate);
 
         var fileArea = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
+        fileArea.Controls.Add(new Label
+        {
+            Text = "ACTIVE PROFILE",
+            AutoSize = true,
+            Location = new Point(26, 11),
+            Font = new Font("Segoe UI", 7.5F, FontStyle.Bold),
+            ForeColor = TextMuted
+        });
+
         _fileLabel.AutoEllipsis = true;
         _fileLabel.AutoSize = false;
-        _fileLabel.Location = new Point(24, 21);
-        _fileLabel.Size = new Size(520, 22);
+        _fileLabel.Location = new Point(26, 28);
+        _fileLabel.Size = new Size(560, 22);
         _fileLabel.Text = "No save loaded";
         _fileLabel.ForeColor = TextSecondary;
         _fileLabel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
         fileArea.Controls.Add(_fileLabel);
 
         _saveStateBadge.AutoSize = false;
-        _saveStateBadge.Location = new Point(24, 47);
-        _saveStateBadge.Size = new Size(128, 20);
+        _saveStateBadge.Location = new Point(26, 54);
+        _saveStateBadge.Size = new Size(132, 21);
         _saveStateBadge.TextAlign = ContentAlignment.MiddleCenter;
-        _saveStateBadge.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+        _saveStateBadge.Font = new Font("Segoe UI", 7.8F, FontStyle.Bold);
         _saveStateBadge.Text = "NO SAVE LOADED";
         _saveStateBadge.BackColor = SurfaceRaised;
         _saveStateBadge.ForeColor = TextSecondary;
@@ -268,208 +279,18 @@ public sealed class MainForm : Form
     }
 
 
-    private void ShowDonateDialog()
-    {
-        const string paypalEmail = "mohammedar@btinternet.com";
-
-        using var dialog = new Form
-        {
-            Text = "Support Driveclub PS4 Save Editor",
-            StartPosition = FormStartPosition.CenterParent,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            ShowInTaskbar = false,
-            ClientSize = new Size(540, 355),
-            BackColor = AppBack,
-            ForeColor = TextPrimary,
-            Font = new Font("Segoe UI", 10F)
-        };
-
-        var title = new Label
-        {
-            Text = "Support the developer",
-            AutoSize = true,
-            Location = new Point(24, 22),
-            Font = new Font("Segoe UI", 18F, FontStyle.Bold),
-            ForeColor = TextPrimary
-        };
-        dialog.Controls.Add(title);
-
-        var description = new Label
-        {
-            Text = "If this editor is useful to you, you can make an optional PayPal donation. " +
-                   "Choose any amount. Currency conversion and payment are handled by PayPal.",
-            AutoSize = false,
-            Location = new Point(27, 64),
-            Size = new Size(485, 54),
-            ForeColor = TextSecondary
-        };
-        dialog.Controls.Add(description);
-
-        dialog.Controls.Add(new Label
-        {
-            Text = "Amount",
-            AutoSize = true,
-            Location = new Point(27, 137),
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            ForeColor = TextSecondary
-        });
-
-        var amount = new NumericUpDown
-        {
-            Location = new Point(27, 159),
-            Size = new Size(180, 30),
-            DecimalPlaces = 2,
-            Minimum = 0,
-            Maximum = 1000000000M,
-            Increment = 1M,
-            Value = 0
-        };
-        StyleNumeric(amount);
-        dialog.Controls.Add(amount);
-
-        var amountHint = new Label
-        {
-            Text = "0 = enter any amount on PayPal",
-            AutoSize = true,
-            Location = new Point(27, 195),
-            Font = new Font("Segoe UI", 8.5F),
-            ForeColor = TextSecondary
-        };
-        dialog.Controls.Add(amountHint);
-
-        dialog.Controls.Add(new Label
-        {
-            Text = "Currency",
-            AutoSize = true,
-            Location = new Point(238, 137),
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            ForeColor = TextSecondary
-        });
-
-        var currency = new ComboBox
-        {
-            Location = new Point(238, 159),
-            Size = new Size(274, 30),
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            BackColor = InputBack,
-            ForeColor = TextPrimary,
-            FlatStyle = FlatStyle.Flat
-        };
-        currency.Items.AddRange(new object[]
-        {
-            "PayPal default",
-            "AUD - Australian Dollar",
-            "BRL - Brazilian Real",
-            "CAD - Canadian Dollar",
-            "CNY - Chinese Yuan",
-            "CZK - Czech Koruna",
-            "DKK - Danish Krone",
-            "EUR - Euro",
-            "HKD - Hong Kong Dollar",
-            "HUF - Hungarian Forint",
-            "ILS - Israeli New Shekel",
-            "JPY - Japanese Yen",
-            "MYR - Malaysian Ringgit",
-            "MXN - Mexican Peso",
-            "TWD - New Taiwan Dollar",
-            "NZD - New Zealand Dollar",
-            "NOK - Norwegian Krone",
-            "PHP - Philippine Peso",
-            "PLN - Polish Zloty",
-            "GBP - Pound Sterling",
-            "SGD - Singapore Dollar",
-            "SEK - Swedish Krona",
-            "CHF - Swiss Franc",
-            "THB - Thai Baht",
-            "USD - US Dollar"
-        });
-        currency.SelectedIndex = 0;
-        dialog.Controls.Add(currency);
-
-        var recipient = new Label
-        {
-            Text = $"PayPal recipient: {paypalEmail}",
-            AutoSize = true,
-            Location = new Point(27, 235),
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            ForeColor = TextPrimary
-        };
-        dialog.Controls.Add(recipient);
-        var privacy = new Label
-        {
-            Text = "The editor never receives or stores card, bank, PayPal login, or payment details. " +
-                   "Donating is optional and does not unlock or change any editor feature.",
-            AutoSize = false,
-            Location = new Point(27, 262),
-            Size = new Size(485, 42),
-            Font = new Font("Segoe UI", 8.5F),
-            ForeColor = TextSecondary
-        };
-        dialog.Controls.Add(privacy);
-
-        var cancel = MakeButton("CANCEL", false, 100);
-        cancel.Location = new Point(300, 311);
-        cancel.DialogResult = DialogResult.Cancel;
-        dialog.Controls.Add(cancel);
-
-        var openPayPal = MakeButton("OPEN PAYPAL", true, 122);
-        openPayPal.Location = new Point(410, 311);
-        openPayPal.Click += (_, _) =>
-        {
-            try
-            {
-                string url = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations" +
-                             "&business=" + Uri.EscapeDataString(paypalEmail) +
-                             "&item_name=" + Uri.EscapeDataString("Support Driveclub PS4 Save Editor");
-
-                if (amount.Value > 0)
-                    url += "&amount=" + amount.Value.ToString("0.00", CultureInfo.InvariantCulture);
-
-                if (currency.SelectedIndex > 0 && currency.SelectedItem is string selectedCurrency)
-                {
-                    string code = selectedCurrency.Split(' ', 2)[0];
-                    if (amount.Value > 0 && (code is "HUF" or "JPY" or "TWD") && amount.Value != decimal.Truncate(amount.Value))
-                    {
-                        MessageBox.Show(dialog,
-                            $"{code} does not support fractional amounts on PayPal. Enter a whole-number amount or set Amount to 0 and choose the amount on PayPal.",
-                            "PayPal Currency", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        return;
-                    }
-                    url += "&currency_code=" + Uri.EscapeDataString(code);
-                }
-
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-                dialog.Close();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(dialog,
-                    "Could not open PayPal in the default browser.\n\n" + ex.Message +
-                    "\n\nPayPal recipient: " + paypalEmail,
-                    "PayPal", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        };
-        dialog.Controls.Add(openPayPal);
-
-        dialog.AcceptButton = openPayPal;
-        dialog.CancelButton = cancel;
-        dialog.ShowDialog(this);
-    }
-
     private Panel BuildSidebar()
     {
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 226, BackColor = SidebarBack, Padding = new Padding(14, 20, 14, 18) };
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 248, BackColor = SidebarBack, Padding = new Padding(14, 22, 14, 18) };
 
         var section = new Label
         {
-            Text = "EDITOR",
+            Text = "WORKSPACE",
             Dock = DockStyle.Top,
-            Height = 28,
-            Padding = new Padding(10, 0, 0, 0),
-            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(104, 114, 134)
+            Height = 30,
+            Padding = new Padding(12, 0, 0, 0),
+            Font = new Font("Segoe UI", 7.8F, FontStyle.Bold),
+            ForeColor = TextMuted
         };
         sidebar.Controls.Add(section);
 
@@ -477,41 +298,60 @@ public sealed class MainForm : Form
         for (int i = names.Length - 1; i >= 0; i--)
         {
             int index = i;
+            string baseText = $"{i + 1:00}   {names[i]}";
             var button = new Button
             {
-                Text = names[i],
+                Text = "   " + baseText,
+                Tag = baseText,
                 Dock = DockStyle.Top,
-                Height = 48,
+                Height = 52,
                 FlatStyle = FlatStyle.Flat,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 0, 0, 0),
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Padding = new Padding(10, 0, 0, 0),
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 BackColor = SidebarBack,
                 ForeColor = TextSecondary,
                 Cursor = Cursors.Hand,
                 TabStop = false
             };
             button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = SurfaceRaised;
+            button.FlatAppearance.MouseDownBackColor = AccentSoft;
             button.Click += (_, _) => NavigateTo(index);
             _navButtons.Insert(0, button);
             sidebar.Controls.Add(button);
         }
 
-        var info = new Panel { Dock = DockStyle.Bottom, Height = 106, BackColor = Surface };
+        var info = new Panel { Dock = DockStyle.Bottom, Height = 126, BackColor = Surface, Padding = new Padding(0) };
+        info.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Border);
+            e.Graphics.DrawRectangle(pen, 0, 0, info.Width - 1, info.Height - 1);
+            using var accentPen = new Pen(Accent, 3F);
+            e.Graphics.DrawLine(accentPen, 0, 1, info.Width, 1);
+        };
+        info.Controls.Add(new Label
+        {
+            Text = "COMPATIBILITY",
+            AutoSize = true,
+            Location = new Point(14, 16),
+            Font = new Font("Segoe UI", 7.5F, FontStyle.Bold),
+            ForeColor = TextMuted
+        });
         info.Controls.Add(new Label
         {
             Text = "ALL REGIONS  •  v1.28",
             AutoSize = true,
-            Location = new Point(14, 14),
-            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Location = new Point(14, 37),
+            Font = new Font("Segoe UI", 8.7F, FontStyle.Bold),
             ForeColor = TextPrimary
         });
         info.Controls.Add(new Label
         {
-            Text = "OFFLINE EDITOR\\nAUTO BACKUP\\nCHECKSUM REPAIR",
+            Text = "DECRYPTED PROFILE.SAV\nAUTO BACKUP  •  CHECKSUM REPAIR",
             AutoSize = true,
-            Location = new Point(14, 39),
-            Font = new Font("Segoe UI", 8F),
+            Location = new Point(14, 67),
+            Font = new Font("Segoe UI", 7.9F),
             ForeColor = TextSecondary
         });
         sidebar.Controls.Add(info);
@@ -520,13 +360,26 @@ public sealed class MainForm : Form
 
     private Panel BuildPageHeader()
     {
-        var panel = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppBack };
+        var panel = new Panel { Dock = DockStyle.Top, Height = 108, BackColor = AppBack };
+        panel.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Border);
+            e.Graphics.DrawLine(pen, 0, panel.Height - 1, panel.Width, panel.Height - 1);
+        };
+        panel.Controls.Add(new Label
+        {
+            Text = "DRIVECLUB SAVE TOOLS",
+            AutoSize = true,
+            Location = new Point(4, 13),
+            Font = new Font("Segoe UI", 7.5F, FontStyle.Bold),
+            ForeColor = AccentHover
+        });
         _pageTitle.AutoSize = true;
-        _pageTitle.Location = new Point(2, 18);
-        _pageTitle.Font = new Font("Segoe UI", 21F, FontStyle.Bold);
+        _pageTitle.Location = new Point(2, 31);
+        _pageTitle.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
         _pageTitle.ForeColor = TextPrimary;
         _pageSubtitle.AutoSize = true;
-        _pageSubtitle.Location = new Point(4, 57);
+        _pageSubtitle.Location = new Point(4, 73);
         _pageSubtitle.Font = new Font("Segoe UI", 9.5F);
         _pageSubtitle.ForeColor = TextSecondary;
         panel.Controls.Add(_pageTitle);
@@ -545,6 +398,8 @@ public sealed class MainForm : Form
         for (int i = 0; i < _navButtons.Count; i++)
         {
             bool selected = i == index;
+            string baseText = Convert.ToString(_navButtons[i].Tag) ?? _navButtons[i].Text.Trim();
+            _navButtons[i].Text = selected ? "▌  " + baseText : "    " + baseText;
             _navButtons[i].BackColor = selected ? SurfaceRaised : SidebarBack;
             _navButtons[i].ForeColor = selected ? Color.White : TextSecondary;
             _navButtons[i].FlatAppearance.BorderSize = 0;
@@ -559,7 +414,7 @@ public sealed class MainForm : Form
         var metrics = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 138,
+            Height = 148,
             ColumnCount = 4,
             RowCount = 1,
             BackColor = AppBack,
@@ -572,7 +427,7 @@ public sealed class MainForm : Form
         metrics.Controls.Add(MakeMetricCard("VEHICLES", _homeVehiclesValue, "Detected in save"), 3, 0);
 
         var quick = MakeCard("QUICK ACTIONS", "Common editor tasks", 118);
-        quick.Width = 1000;
+        quick.Width = 1100;
         var open = MakeButton("OPEN PROFILE.SAV", false, 150);
         var player = MakeButton("EDIT PLAYER", true, 120);
         var garage = MakeButton("OPEN GARAGE", false, 128);
@@ -591,13 +446,13 @@ public sealed class MainForm : Form
         quick.Controls.Add(save);
 
         var details = MakeCard("SAVE DETAILS", "Verified structures and current profile summary", 330);
-        details.Width = 1000;
+        details.Width = 1100;
         _overviewBox.Location = new Point(20, 66);
-        _overviewBox.Size = new Size(900, 238);
+        _overviewBox.Size = new Size(1000, 238);
         _overviewBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         _overviewBox.ReadOnly = true;
         _overviewBox.BorderStyle = BorderStyle.None;
-        _overviewBox.BackColor = InputBack;
+        _overviewBox.BackColor = SurfaceRaised;
         _overviewBox.ForeColor = TextSecondary;
         _overviewBox.Font = new Font("Cascadia Mono", 10F);
         _overviewBox.Text =
@@ -695,7 +550,7 @@ public sealed class MainForm : Form
         _features.Size = new Size(610, 236);
         _features.BackColor = InputBack;
         _features.ForeColor = TextPrimary;
-        _features.BorderStyle = BorderStyle.None;
+        _features.BorderStyle = BorderStyle.FixedSingle;
         _features.CheckOnClick = true;
         _features.Font = new Font("Segoe UI", 9.5F);
         foreach (var pair in FriendlyNames.FeatureLabels) _features.Items.Add(pair.Value);
@@ -1122,6 +977,8 @@ public sealed class MainForm : Form
         combo.BackColor = InputBack;
         combo.ForeColor = TextPrimary;
         combo.FlatStyle = FlatStyle.Flat;
+        combo.Font = new Font("Segoe UI", 9.5F);
+        combo.MinimumSize = new Size(0, 30);
     }
 
     private static void ConfigureAssetCombo(ComboBox combo, IEnumerable<LiveryAssets.Choice> choices, Point location, int width, bool includeNone = false)
@@ -2231,27 +2088,39 @@ public sealed class MainForm : Form
 
     private static Panel MakeMetricCard(string title, Label valueLabel, string subtitle)
     {
-        var card = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 12, 0), BackColor = Surface, Padding = new Padding(18) };
-        card.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(Border), 0, 0, card.Width - 1, card.Height - 1);
+        var card = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 0, 14, 0),
+            BackColor = Surface,
+            Padding = new Padding(18)
+        };
+        card.Paint += (_, e) =>
+        {
+            using var borderPen = new Pen(Border);
+            e.Graphics.DrawRectangle(borderPen, 0, 0, card.Width - 1, card.Height - 1);
+            using var accentPen = new Pen(Accent, 3F);
+            e.Graphics.DrawLine(accentPen, 1, 1, card.Width - 2, 1);
+        };
         var titleLabel = new Label
         {
             Text = title,
             AutoSize = true,
-            Location = new Point(18, 16),
-            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
-            ForeColor = TextSecondary
+            Location = new Point(18, 18),
+            Font = new Font("Segoe UI", 7.8F, FontStyle.Bold),
+            ForeColor = TextMuted
         };
         valueLabel.AutoSize = true;
-        valueLabel.Location = new Point(18, 43);
-        valueLabel.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
+        valueLabel.Location = new Point(18, 45);
+        valueLabel.Font = new Font("Segoe UI", 21F, FontStyle.Bold);
         valueLabel.ForeColor = TextPrimary;
         valueLabel.Text = "—";
         var sub = new Label
         {
             Text = subtitle,
             AutoSize = true,
-            Location = new Point(20, 84),
-            Font = new Font("Segoe UI", 8.5F),
+            Location = new Point(20, 91),
+            Font = new Font("Segoe UI", 8.3F),
             ForeColor = TextSecondary
         };
         card.Controls.Add(titleLabel);
@@ -2265,11 +2134,13 @@ public sealed class MainForm : Form
         var card = new Panel { Height = height, BackColor = Surface, Padding = new Padding(0), Margin = new Padding(0) };
         card.Paint += (_, e) =>
         {
-            using var pen = new Pen(Border);
-            e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+            using var borderPen = new Pen(Border);
+            e.Graphics.DrawRectangle(borderPen, 0, 0, card.Width - 1, card.Height - 1);
+            using var accentPen = new Pen(Accent, 3F);
+            e.Graphics.DrawLine(accentPen, 1, 1, card.Width - 2, 1);
+            using var dividerPen = new Pen(Border);
+            e.Graphics.DrawLine(dividerPen, 18, 58, card.Width - 18, 58);
         };
-        var accent = new Panel { Location = new Point(0, 0), Size = new Size(4, 54), BackColor = Accent };
-        card.Controls.Add(accent);
         card.Controls.Add(new Label
         {
             Text = title,
@@ -2283,7 +2154,7 @@ public sealed class MainForm : Form
             Text = subtitle,
             AutoSize = true,
             Location = new Point(20, 36),
-            Font = new Font("Segoe UI", 8.5F),
+            Font = new Font("Segoe UI", 8.4F),
             ForeColor = TextSecondary
         });
         return card;
@@ -2306,10 +2177,11 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Top,
             Height = height,
-            Padding = new Padding(14, 12, 14, 0),
+            Padding = new Padding(16, 12, 16, 0),
             Text = text,
             BackColor = SurfaceRaised,
-            ForeColor = TextSecondary
+            ForeColor = TextSecondary,
+            BorderStyle = BorderStyle.FixedSingle
         };
         if (accent.HasValue) label.ForeColor = accent.Value;
         return label;
@@ -2333,13 +2205,13 @@ public sealed class MainForm : Form
             RowHeadersVisible = false,
             MultiSelect = false,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            BackgroundColor = AppBack,
+            BackgroundColor = Surface,
             GridColor = Border,
             BorderStyle = BorderStyle.None,
             CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
             ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
             EnableHeadersVisualStyles = false,
-            ColumnHeadersHeight = 40,
+            ColumnHeadersHeight = 42,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
             AutoGenerateColumns = false
         };
@@ -2349,44 +2221,46 @@ public sealed class MainForm : Form
             ForeColor = TextSecondary,
             SelectionBackColor = SurfaceRaised,
             SelectionForeColor = TextSecondary,
-            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-            Padding = new Padding(8, 0, 0, 0)
+            Font = new Font("Segoe UI", 8.2F, FontStyle.Bold),
+            Padding = new Padding(10, 0, 0, 0)
         };
         grid.DefaultCellStyle = new DataGridViewCellStyle
         {
             BackColor = Surface,
             ForeColor = TextPrimary,
-            SelectionBackColor = Color.FromArgb(48, 58, 88),
+            SelectionBackColor = AccentSoft,
             SelectionForeColor = Color.White,
-            Font = new Font("Segoe UI", 9.5F),
-            Padding = new Padding(8, 0, 0, 0)
+            Font = new Font("Segoe UI", 9.3F),
+            Padding = new Padding(10, 0, 0, 0)
         };
-        grid.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(26, 31, 40), ForeColor = TextPrimary };
-        grid.RowTemplate.Height = 34;
+        grid.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(23, 29, 38), ForeColor = TextPrimary };
+        grid.RowTemplate.Height = 38;
         return grid;
     }
 
     private static Button MakeButton(string text, bool primary = false, int width = 120)
     {
         var normal = primary ? Accent : SurfaceRaised;
-        var hover = primary ? AccentHover : Color.FromArgb(40, 47, 59);
+        var hover = primary ? AccentHover : SurfaceHover;
+        var pressed = primary ? Color.FromArgb(43, 91, 209) : AccentSoft;
         var button = new Button
         {
             Text = text,
             Width = width,
-            Height = 34,
+            Height = 38,
             FlatStyle = FlatStyle.Flat,
             BackColor = normal,
             ForeColor = Color.White,
             Margin = new Padding(5, 0, 5, 0),
-            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Padding = new Padding(8, 0, 8, 0),
+            Font = new Font("Segoe UI", 8.4F, FontStyle.Bold),
             Cursor = Cursors.Hand,
             TabStop = false
         };
         button.FlatAppearance.BorderSize = primary ? 0 : 1;
         button.FlatAppearance.BorderColor = Border;
-        button.MouseEnter += (_, _) => button.BackColor = hover;
-        button.MouseLeave += (_, _) => button.BackColor = normal;
+        button.FlatAppearance.MouseOverBackColor = hover;
+        button.FlatAppearance.MouseDownBackColor = pressed;
         return button;
     }
 
@@ -2396,6 +2270,7 @@ public sealed class MainForm : Form
         numeric.ForeColor = TextPrimary;
         numeric.BorderStyle = BorderStyle.FixedSingle;
         numeric.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        numeric.MinimumSize = new Size(0, 30);
     }
 
     private static void StyleTextBox(TextBox textBox)
@@ -2404,6 +2279,7 @@ public sealed class MainForm : Form
         textBox.ForeColor = TextPrimary;
         textBox.BorderStyle = BorderStyle.FixedSingle;
         textBox.Font = new Font("Segoe UI", 10F);
+        textBox.MinimumSize = new Size(0, 30);
     }
 
     private void UpdateSaveBadge()
@@ -2423,4 +2299,3 @@ public sealed class MainForm : Form
 
     private void SetStatus(string text) => _statusLabel.Text = text;
 }
-
