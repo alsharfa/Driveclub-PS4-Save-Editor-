@@ -6,7 +6,7 @@ The editor is title-ID neutral: it does not require CUSA00003 and accepts compat
 
 ## Features
 
-- Modern Windows Forms interface
+- Refined dark Windows Forms UI with a cleaner header, numbered sidebar navigation, status badges, cards and consistent controls
 - Driver Fame and calculated Driver Rank 1–120
 - Garage editing with readable vehicle names and vehicle level controls
 - Vehicle Fame/progression preservation for untouched entries
@@ -17,7 +17,6 @@ The editor is title-ID neutral: it does not require CUSA00003 and accepts compat
 - Friendly statistics and an Advanced raw-data view
 - Automatic backups when overwriting a save
 - Driveclub checksum regeneration and structural validation
-- Optional PayPal Donate button
 
 ## Save safety
 
@@ -99,8 +98,6 @@ Raw access to profile strings, profile floats, StatsStore, Rank, Fame, and Store
 - Windows
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 
-### Build with the included script
-
 Run:
 
 ```text
@@ -113,7 +110,7 @@ The executable will be created at:
 DriveclubSaveEditor\bin\Release\net8.0-windows\Driveclub PS4 Save Editor.exe
 ```
 
-You can also build the project directly:
+Or build directly:
 
 ```powershell
 dotnet build .\DriveclubSaveEditor\DriveclubSaveEditor.csproj -c Release
