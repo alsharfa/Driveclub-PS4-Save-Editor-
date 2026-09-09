@@ -7,11 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Driveclub PS4 Save Editor</AssemblyName>
     <RootNamespace>DriveclubSaveEditor</RootNamespace>
-    <Version>1.1.0</Version>
-    <FileVersion>1.1.0.0</FileVersion>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <Version>1.2.0</Version>
+    <FileVersion>1.2.0.0</FileVersion>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
     <Product>Driveclub PS4 Save Editor</Product>
-    <Description>Offline Driveclub PS4 v1.28 save editor with save integrity checks, garage, customisation, progression, editable trophy preparation, and optional PayPal support.</Description>
+    <Description>Offline Driveclub PS4 v1.28 save editor with deep-reviewed save integrity, refined dark UI, garage, customisation, progression and editable trophy preparation.</Description>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Data\*.csv" />
