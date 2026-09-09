@@ -8,7 +8,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Building Driveclub PS4 Save Editor v1.1...
+echo Building Driveclub PS4 Save Editor v1.2...
 dotnet build -c Release
 if errorlevel 1 (
   echo.
