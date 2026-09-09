@@ -1,0 +1,27 @@
+name: Assemble UI Source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/assemble-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble refreshed MainForm
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ui-payload/MainForm.part00 .ui-payload/MainForm.part01 .ui-payload/MainForm.part02 .ui-payload/MainForm.part03 > /tmp/MainForm.gz.b64
+          base64 -d /tmp/MainForm.gz.b64 | gzip -d > DriveclubSaveEditor/MainForm.cs
+          echo '893bf3486fa4a8d36101fa4f952b61f12666731cb790f0eefc7c6f32eb34fba4  DriveclubSaveEditor/MainForm.cs' | sha256sum -c -
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add DriveclubSaveEditor/MainForm.cs
+          git commit -m 'Remove donation feature and refresh UI'
+          git push
