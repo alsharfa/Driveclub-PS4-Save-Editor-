@@ -1,0 +1,458 @@
+name: Apply v1.3 Cheats
+
+on:
+  push:
+    paths:
+      - '.github/workflows/v13-cheats.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply verified save cheats page
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v13.patch <<'PATCH'
+          diff -ruN /tmp/dc_old/DriveclubSaveEditor/DriveclubSaveEditor.csproj /tmp/dc_new/DriveclubSaveEditor/DriveclubSaveEditor.csproj
+          --- /tmp/dc_old/DriveclubSaveEditor/DriveclubSaveEditor.csproj
+          +++ /tmp/dc_new/DriveclubSaveEditor/DriveclubSaveEditor.csproj
+          @@ -7,11 +7,11 @@
+               <ImplicitUsings>enable</ImplicitUsings>
+               <AssemblyName>Driveclub PS4 Save Editor</AssemblyName>
+               <RootNamespace>DriveclubSaveEditor</RootNamespace>
+          -    <Version>1.2.0</Version>
+          -    <FileVersion>1.2.0.0</FileVersion>
+          -    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+          +    <Version>1.3.0</Version>
+          +    <FileVersion>1.3.0.0</FileVersion>
+          +    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+               <Product>Driveclub PS4 Save Editor</Product>
+          -    <Description>Offline Driveclub PS4 v1.28 save editor with deep-reviewed save integrity, refined dark UI, garage, customisation, progression and editable trophy preparation.</Description>
+          +    <Description>Offline Driveclub PS4 v1.28 save editor with deep-reviewed save integrity, refined dark UI, garage, customisation, progression, editable trophy preparation and verified save-side cheat presets.</Description>
+             </PropertyGroup>
+             <ItemGroup>
+               <EmbeddedResource Include="Data\*.csv" />
+          diff -ruN /tmp/dc_old/DriveclubSaveEditor/MainForm.cs /tmp/dc_new/DriveclubSaveEditor/MainForm.cs
+          --- /tmp/dc_old/DriveclubSaveEditor/MainForm.cs
+          +++ /tmp/dc_new/DriveclubSaveEditor/MainForm.cs
+          @@ -114,6 +114,21 @@
+               private readonly DataGridView _fameGrid = CreateGrid();
+               private readonly DataGridView _storeGrid = CreateGrid();
+           
+          +    // Verified save-side convenience / cheat controls. These only touch fields that were
+          +    // confirmed in the v1.28 profile and matched against the game/UI strings.
+          +    private readonly CheckBox _cheatFgeComplete = new();
+          +    private readonly ComboBox _cheatDifficulty = new();
+          +    private readonly NumericUpDown _cheatOpponents = new();
+          +    private readonly NumericUpDown _cheatLaps = new();
+          +    private readonly ComboBox _cheatOpponentVehicle = new();
+          +    private readonly Dictionary<string, string> _cheatOriginalRaw = new(StringComparer.Ordinal);
+          +    private bool _loadingCheats;
+          +    private bool _cheatFgeDirty;
+          +    private bool _cheatDifficultyDirty;
+          +    private bool _cheatOpponentsDirty;
+          +    private bool _cheatLapsDirty;
+          +    private bool _cheatOpponentVehicleDirty;
+          +
+               private static readonly (string Title, string Subtitle)[] PageInfo =
+               [
+                   ("Dashboard", "Save health, progression and quick access"),
+          @@ -122,6 +137,7 @@
+                   ("Customisation", "Liveries, paint, race numbers, badges and decals"),
+                   ("Progression", "Elite requirements, accolades and challenge counters"),
+                   ("Trophy Prep", "Individually edit trophy-related save counters and trigger targets"),
+          +        ("Cheats", "Verified save-side presets and shortcuts without unsafe entitlement edits"),
+                   ("Statistics", "Readable vehicle, track and gameplay statistics"),
+                   ("Advanced", "Raw save structures for research and troubleshooting")
+               ];
+          @@ -150,6 +166,7 @@
+                   _tabs.TabPages.Add(BuildCustomisationTab());
+                   _tabs.TabPages.Add(BuildProgressionTab());
+                   _tabs.TabPages.Add(BuildTrophyPrepTab());
+          +        _tabs.TabPages.Add(BuildCheatsTab());
+                   _tabs.TabPages.Add(BuildStatsTab());
+                   _tabs.TabPages.Add(BuildAdvancedTab());
+           
+          @@ -294,7 +311,7 @@
+                   };
+                   sidebar.Controls.Add(section);
+           
+          -        string[] names = ["Dashboard", "Player", "Garage", "Customisation", "Progression", "Trophy Prep", "Statistics", "Advanced"];
+          +        string[] names = ["Dashboard", "Player", "Garage", "Customisation", "Progression", "Trophy Prep", "Cheats", "Statistics", "Advanced"];
+                   for (int i = names.Length - 1; i >= 0; i--)
+                   {
+                       int index = i;
+          @@ -869,6 +886,195 @@
+                   return page;
+               }
+           
+          +    private TabPage BuildCheatsTab()
+          +    {
+          +        var page = NewPage("Cheats");
+          +        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = AppBack, Padding = new Padding(0, 14, 0, 20) };
+          +
+          +        var verified = MakeNote(
+          +            "Deep review result: profile.sav contains progression shortcuts and saved Free Play preferences, but Auto Drive, invulnerability, no-collision and similar driving cheats are runtime/EBOOT features. This page intentionally avoids commerce/entitlement and uncertain Tour-completion fields.",
+          +            72, Warning);
+          +        verified.Dock = DockStyle.Top;
+          +
+          +        var quick = MakeCard("SAFE SAVE SHORTCUTS", "Uses the editor's already verified Fame, Garage and feature mappings", 190);
+          +        quick.Width = 1040;
+          +        var maxRank = MakeButton("MAX DRIVER RANK", true, 158);
+          +        maxRank.Location = new Point(20, 76);
+          +        maxRank.Click += (_, _) =>
+          +        {
+          +            SetTargetDriverRank(120);
+          +            SetStatus("Cheat preset: Driver Rank target set to 120. Save to write the Fame change.");
+          +        };
+          +        quick.Controls.Add(maxRank);
+          +
+          +        var maxVehicles = MakeButton("MAX ALL VEHICLES", false, 158);
+          +        maxVehicles.Location = new Point(190, 76);
+          +        maxVehicles.Click += (_, _) =>
+          +        {
+          +            SetAllGarageLevels(15);
+          +            SetStatus("Cheat preset: all detected vehicle levels set to 15. Save to write changed vehicles.");
+          +        };
+          +        quick.Controls.Add(maxVehicles);
+          +
+          +        var allFeatures = MakeButton("ENABLE ALL FEATURES", false, 168);
+          +        allFeatures.Location = new Point(360, 76);
+          +        allFeatures.Click += (_, _) =>
+          +        {
+          +            for (int i = 0; i < _features.Items.Count; i++)
+          +                _features.SetItemChecked(i, true);
+          +            SetStatus("Cheat preset: all mapped profile feature flags enabled. Save to apply.");
+          +        };
+          +        quick.Controls.Add(allFeatures);
+          +
+          +        var tourEasy = MakeButton("TOUR EASY", false, 124);
+          +        tourEasy.Location = new Point(540, 76);
+          +        tourEasy.Click += (_, _) =>
+          +        {
+          +            SetFeatureChecked("toureasy", true);
+          +            SetStatus("Tour Easy profile flag enabled. Save to apply.");
+          +        };
+          +        quick.Controls.Add(tourEasy);
+          +
+          +        var trophy = MakeButton("TROPHY PREP", false, 132);
+          +        trophy.Location = new Point(676, 76);
+          +        trophy.Click += (_, _) => NavigateTo(5);
+          +        quick.Controls.Add(trophy);
+          +
+          +        quick.Controls.Add(new Label
+          +        {
+          +            Text = "These shortcuts change the same verified fields as Player, Garage and Trophy Prep; they do not bypass the save integrity checks.",
+          +            AutoSize = false,
+          +            Location = new Point(22, 128),
+          +            Size = new Size(940, 34),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Segoe UI", 9F)
+          +        });
+          +
+          +        var fge = MakeCard("FIRST GAME EXPERIENCE", "Confirmed PlayerProfile FGEComplete getter/setter exists in the v1.28 EBOOT", 170);
+          +        fge.Width = 1040;
+          +        _cheatFgeComplete.Location = new Point(22, 76);
+          +        _cheatFgeComplete.AutoSize = true;
+          +        _cheatFgeComplete.Text = "Mark FGEComplete = true (skip first-time experience/tutorial gates)";
+          +        _cheatFgeComplete.ForeColor = TextPrimary;
+          +        _cheatFgeComplete.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+          +        _cheatFgeComplete.CheckedChanged += (_, _) =>
+          +        {
+          +            if (!_loadingCheats) _cheatFgeDirty = true;
+          +        };
+          +        fge.Controls.Add(_cheatFgeComplete);
+          +        fge.Controls.Add(new Label
+          +        {
+          +            Text = "This flag is save-side. It is not Auto Drive and does not modify driving physics.",
+          +            AutoSize = true,
+          +            Location = new Point(24, 112),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Segoe UI", 8.8F)
+          +        });
+          +
+          +        var race = MakeCard("FREE PLAY PRESET", "Verified values from the game's Free Play combobox definitions", 280);
+          +        race.Width = 1040;
+          +        race.Controls.Add(MakeFieldLabel("AI DIFFICULTY", 20, 76));
+          +        ConfigureCombo(_cheatDifficulty, new Point(20, 101), 220);
+          +        _cheatDifficulty.Items.AddRange(new object[] { "Rookie", "Amateur", "Semi-Pro", "Professional", "Legend" });
+          +        _cheatDifficulty.SelectedIndexChanged += (_, _) =>
+          +        {
+          +            if (!_loadingCheats) _cheatDifficultyDirty = true;
+          +        };
+          +        race.Controls.Add(_cheatDifficulty);
+          +
+          +        race.Controls.Add(MakeFieldLabel("OPPONENTS", 264, 76));
+          +        ConfigureNumeric(_cheatOpponents, 0, 11, new Point(264, 101), 140);
+          +        _cheatOpponents.ValueChanged += (_, _) =>
+          +        {
+          +            if (!_loadingCheats) _cheatOpponentsDirty = true;
+          +        };
+          +        race.Controls.Add(_cheatOpponents);
+          +        race.Controls.Add(new Label
+          +        {
+          +            Text = "0 = Random, 1–11 = competitor count",
+          +            AutoSize = true,
+          +            Location = new Point(264, 136),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Segoe UI", 8.2F)
+          +        });
+          +
+          +        race.Controls.Add(MakeFieldLabel("LAPS", 430, 76));
+          +        ConfigureNumeric(_cheatLaps, 0, 25, new Point(430, 101), 120);
+          +        _cheatLaps.ValueChanged += (_, _) =>
+          +        {
+          +            if (!_loadingCheats) _cheatLapsDirty = true;
+          +        };
+          +        race.Controls.Add(_cheatLaps);
+          +        race.Controls.Add(new Label
+          +        {
+          +            Text = "0 = Random, 1–25",
+          +            AutoSize = true,
+          +            Location = new Point(430, 136),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Segoe UI", 8.2F)
+          +        });
+          +
+          +        race.Controls.Add(MakeFieldLabel("OPPONENT VEHICLES", 576, 76));
+          +        ConfigureCombo(_cheatOpponentVehicle, new Point(576, 101), 220);
+          +        _cheatOpponentVehicle.Items.AddRange(new object[] { "Player Class", "Player Vehicle" });
+          +        _cheatOpponentVehicle.SelectedIndexChanged += (_, _) =>
+          +        {
+          +            if (!_loadingCheats) _cheatOpponentVehicleDirty = true;
+          +        };
+          +        race.Controls.Add(_cheatOpponentVehicle);
+          +
+          +        var easy = MakeButton("APPLY EASY RACE", true, 158);
+          +        easy.Location = new Point(20, 188);
+          +        easy.Click += (_, _) =>
+          +        {
+          +            _cheatDifficulty.SelectedIndex = 0;
+          +            _cheatOpponents.Value = 1;
+          +            _cheatLaps.Value = 1;
+          +            _cheatOpponentVehicle.SelectedIndex = 0;
+          +            SetStatus("Easy Free Play preset selected: Rookie, 1 opponent, 1 lap, Player Class. Save to apply.");
+          +        };
+          +        race.Controls.Add(easy);
+          +        race.Controls.Add(new Label
+          +        {
+          +            Text = "Note: these are normal Free Play menu values persisted in profile.sav. 0 opponents does NOT mean no opponents; value 0 is Random.",
+          +            AutoSize = false,
+          +            Location = new Point(194, 189),
+          +            Size = new Size(790, 48),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Segoe UI", 8.8F)
+          +        });
+          +
+          +        var unsafeCard = MakeCard("NOT EXPOSED AS CHEATS", "Fields found in the save but deliberately left alone", 190);
+          +        unsafeCard.Width = 1040;
+          +        unsafeCard.Controls.Add(new Label
+          +        {
+          +            Text = "• InPlus_*  — commerce / entitlement state (not treated as DLC ownership)\n" +
+          +                   "• SFV*      — customisation/livery persistence\n" +
+          +                   "• tourcompleted* — Tour/star completion bookkeeping\n" +
+          +                   "• AutoPilot / Toggle AI control — runtime EBOOT feature, not profile.sav",
+          +            AutoSize = false,
+          +            Location = new Point(22, 72),
+          +            Size = new Size(930, 96),
+          +            ForeColor = TextSecondary,
+          +            Font = new Font("Consolas", 9.2F)
+          +        });
+          +
+          +        quick.Dock = DockStyle.Top;
+          +        fge.Dock = DockStyle.Top;
+          +        race.Dock = DockStyle.Top;
+          +        unsafeCard.Dock = DockStyle.Top;
+          +        scroll.Controls.Add(unsafeCard);
+          +        scroll.Controls.Add(MakeGap(14));
+          +        scroll.Controls.Add(race);
+          +        scroll.Controls.Add(MakeGap(14));
+          +        scroll.Controls.Add(fge);
+          +        scroll.Controls.Add(MakeGap(14));
+          +        scroll.Controls.Add(quick);
+          +        page.Controls.Add(scroll);
+          +        page.Controls.Add(verified);
+          +        return page;
+          +    }
+          +
+               private TabPage BuildStatsTab()
+               {
+                   var page = NewPage("Statistics");
+          @@ -1068,6 +1274,7 @@
+                   PopulateCustomisation();
+                   PopulateProgression();
+                   PopulateTrophyPrep();
+          +        PopulateCheats();
+                   PopulateStatistics();
+                   PopulateAdvanced();
+           
+          @@ -1090,7 +1297,7 @@
+                       $"VEHICLES         {vehicles:N0}\n" +
+                       $"TRACKS           {tracks:N0}\n\n" +
+                       "Use Player for Fame and Driver Rank targets, Garage for vehicle levels, and Customisation for the saved livery slots.\n" +
+          -            "Progression shows verified Elite requirements and named counters; Trophy Prep provides conservative save-side presets. Advanced keeps raw structures out of the normal workflow.";
+          +            "Progression shows verified Elite requirements and named counters; Trophy Prep provides conservative save-side presets. Cheats groups only verified save-side shortcuts and explicitly avoids commerce/entitlement fields. Advanced keeps raw structures out of the normal workflow.";
+           
+                   UpdateSaveBadge();
+               }
+          @@ -1679,6 +1886,86 @@
+                   }
+               }
+           
+          +    private void PopulateCheats()
+          +    {
+          +        if (_save is null) return;
+          +
+          +        _loadingCheats = true;
+          +        try
+          +        {
+          +            _cheatOriginalRaw.Clear();
+          +            foreach (string key in new[] { "FGEComplete", "settings.difficulty", "settings.opponents", "settings.laps", "settings.opponentvehicle" })
+          +                _cheatOriginalRaw[key] = _save.FindString(key)?.Value ?? string.Empty;
+          +
+          +            _cheatFgeComplete.Checked = IsTrue(_cheatOriginalRaw["FGEComplete"]);
+          +
+          +            int difficulty = ParseSavedInt(_cheatOriginalRaw["settings.difficulty"], 1);
+          +            _cheatDifficulty.SelectedIndex = Math.Clamp(difficulty, 0, 4);
+          +
+          +            int opponents = ParseSavedInt(_cheatOriginalRaw["settings.opponents"], 1);
+          +            _cheatOpponents.Value = Math.Clamp(opponents, (int)_cheatOpponents.Minimum, (int)_cheatOpponents.Maximum);
+          +
+          +            int laps = ParseSavedInt(_cheatOriginalRaw["settings.laps"], 1);
+          +            _cheatLaps.Value = Math.Clamp(laps, (int)_cheatLaps.Minimum, (int)_cheatLaps.Maximum);
+          +
+          +            int opponentVehicle = ParseSavedInt(_cheatOriginalRaw["settings.opponentvehicle"], 0);
+          +            _cheatOpponentVehicle.SelectedIndex = Math.Clamp(opponentVehicle, 0, 1);
+          +
+          +            _cheatFgeDirty = false;
+          +            _cheatDifficultyDirty = false;
+          +            _cheatOpponentsDirty = false;
+          +            _cheatLapsDirty = false;
+          +            _cheatOpponentVehicleDirty = false;
+          +        }
+          +        finally
+          +        {
+          +            _loadingCheats = false;
+          +        }
+          +    }
+          +
+          +    private static int ParseSavedInt(string raw, int fallback) =>
+          +        int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : fallback;
+          +
+          +    private void SetFeatureChecked(string key, bool enabled)
+          +    {
+          +        int index = 0;
+          +        foreach (var pair in FriendlyNames.FeatureLabels)
+          +        {
+          +            if (string.Equals(pair.Key, key, StringComparison.Ordinal))
+          +            {
+          +                _features.SetItemChecked(index, enabled);
+          +                return;
+          +            }
+          +            index++;
+          +        }
+          +    }
+          +
+          +    private void CommitCheats()
+          +    {
+          +        if (_save is null) return;
+          +
+          +        CommitCheatString("FGEComplete", _cheatFgeComplete.Checked ? "true" : "false", _cheatFgeDirty, "FGEComplete");
+          +        CommitCheatString("settings.difficulty", Math.Max(0, _cheatDifficulty.SelectedIndex).ToString(CultureInfo.InvariantCulture), _cheatDifficultyDirty, "Free Play difficulty");
+          +        CommitCheatString("settings.opponents", decimal.ToInt32(_cheatOpponents.Value).ToString(CultureInfo.InvariantCulture), _cheatOpponentsDirty, "Free Play opponents");
+          +        CommitCheatString("settings.laps", decimal.ToInt32(_cheatLaps.Value).ToString(CultureInfo.InvariantCulture), _cheatLapsDirty, "Free Play laps");
+          +        CommitCheatString("settings.opponentvehicle", Math.Max(0, _cheatOpponentVehicle.SelectedIndex).ToString(CultureInfo.InvariantCulture), _cheatOpponentVehicleDirty, "Free Play opponent vehicle rule");
+          +    }
+          +
+          +    private void CommitCheatString(string key, string desired, bool friendlyChanged, string label)
+          +    {
+          +        if (_save is null || !friendlyChanged) return;
+          +        var entry = _save.FindString(key);
+          +        if (entry is null)
+          +            throw new InvalidDataException($"{label} field '{key}' is missing from this profile.");
+          +
+          +        string original = _cheatOriginalRaw.TryGetValue(key, out var raw) ? raw : entry.Value;
+          +        bool advancedChanged = !string.Equals(entry.Value, original, StringComparison.Ordinal);
+          +        if (advancedChanged && !string.Equals(entry.Value, desired, StringComparison.Ordinal))
+          +            throw new InvalidDataException($"{label} was edited in both Cheats and Advanced with different values.");
+          +
+          +        entry.Value = desired;
+          +    }
+          +
+               private void PopulateGarage()
+               {
+                   if (_save is null) return;
+          @@ -1879,6 +2166,7 @@
+                   // CommitTrophyPrepEdits() marks _driverFameDirty, so Fame must be serialized afterwards.
+                   CommitProgressionCounters();
+                   CommitTrophyPrepEdits();
+          +        CommitCheats();
+           
+                   if (_driverFameDirty)
+                   {
+          diff -ruN /tmp/dc_old/README.md /tmp/dc_new/README.md
+          --- /tmp/dc_old/README.md
+          +++ /tmp/dc_new/README.md
+          @@ -17,6 +17,7 @@
+           - Friendly statistics and an Advanced raw-data view
+           - Automatic backups when overwriting a save
+           - Driveclub checksum regeneration and structural validation
+          +- Verified save-side Cheats page with conservative presets
+           
+           ## Save safety
+           
+          @@ -87,6 +88,24 @@
+           
+           Some counters have confirmed save locations but unknown in-game unit conversions; those remain raw numeric values rather than using an invented conversion.
+           
+          +
+          +### Cheats
+          +
+          +The Cheats page groups only fields that were confirmed in the v1.28 save and matched against game/UI strings:
+          +
+          +- Max Driver Rank 120 shortcut
+          +- Max All Vehicles shortcut
+          +- Enable All mapped feature flags
+          +- Tour Easy shortcut
+          +- `FGEComplete` first-game-experience flag
+          +- Free Play difficulty (`Rookie` through `Legend`)
+          +- Free Play opponents (`0 = Random`, `1–11`)
+          +- Free Play laps (`0 = Random`, `1–25`)
+          +- Opponent vehicle rule (`Player Class` / `Player Vehicle`)
+          +- one-click Easy Race preset: Rookie, 1 opponent, 1 lap
+          +
+          +The editor deliberately does **not** expose `InPlus_*` as DLC unlocks, `SFV*` as ownership flags, or `tourcompleted*` as a blanket Tour unlock. EBOOT/UI analysis shows those fields belong to commerce/entitlement, customisation persistence, or Tour/star bookkeeping and treating them as generic cheats would be unsafe. Auto Drive / `AutoPilot` is a runtime EBOOT feature and is not stored in `profile.sav`.
+          +
+           ### Advanced
+           
+           Raw access to profile strings, profile floats, StatsStore, Rank, Fame, and StoreCatalog data.
+          diff -ruN /tmp/dc_old/build.bat /tmp/dc_new/build.bat
+          --- /tmp/dc_old/build.bat
+          +++ /tmp/dc_new/build.bat
+          @@ -8,7 +8,7 @@
+             pause
+             exit /b 1
+           )
+          -echo Building Driveclub PS4 Save Editor v1.2...
+          +echo Building Driveclub PS4 Save Editor v1.3...
+           dotnet build -c Release
+           if errorlevel 1 (
+             echo.
+          PATCH
+          sed -i 's/^          //' /tmp/v13.patch
+          git apply --check -p2 /tmp/v13.patch
+          git apply -p2 /tmp/v13.patch
+          grep -q '<Version>1.3.0</Version>' DriveclubSaveEditor/DriveclubSaveEditor.csproj
+          grep -q 'private TabPage BuildCheatsTab()' DriveclubSaveEditor/MainForm.cs
+          ! grep -RniE 'donat|paypal|mohammedar@btinternet.com' DriveclubSaveEditor README.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add DriveclubSaveEditor/MainForm.cs DriveclubSaveEditor/DriveclubSaveEditor.csproj README.md build.bat
+          git rm .github/workflows/v13-cheats.yml
+          git commit -m 'Add verified save cheats page'
+          git push
